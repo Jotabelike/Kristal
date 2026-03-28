@@ -1,0 +1,231 @@
+#pragma once
+
+#include <Geode/Geode.hpp>
+#include <Geode/ui/Popup.hpp>
+#include <Geode/ui/ScrollLayer.hpp>
+#include "StickerManager.hpp"
+
+using namespace geode::prelude;
+
+class StickersPopup : public geode::Popup {
+protected:
+    std::function<void(std::string)> m_callback;
+    ScrollLayer* m_scroll = nullptr;
+    CCScale9Sprite* m_scrollBG = nullptr;
+    Scrollbar* m_scrollbar = nullptr;
+    CCMenu* m_tabMenu = nullptr;
+
+    float m_scrollW = 250.0f;
+    float m_scrollH = 125.0f;
+    float m_scrollY = 0.0f;
+
+    int m_currentTab = 0;
+
+    bool init(std::function<void(std::string)> callback) {
+        if (!Popup::init(300.f, 220.f, "GJ_ChatBg_003.png"_spr)) return false;
+
+        m_callback = callback;
+        this->setTitle("Stickers", "bigFont.fnt", 0.6f);
+
+        auto bgSize = m_mainLayer->getContentSize();
+        float centerX = bgSize.width / 2.0f;
+        float centerY = bgSize.height / 2.0f;
+
+        m_scrollY = centerY - 12.0f;
+
+        
+        for (int i = 0; i < 2; i++) {
+            auto sideArt = CCSprite::createWithSpriteFrameName("dailyLevelCorner_001.png");
+
+            float MedioW = m_bgSprite->getContentSize().width / 2;
+            float MedioH = m_bgSprite->getContentSize().height / 2;
+
+            float BgMedioW = sideArt->getContentSize().width / 2;
+            float BgMedioH = sideArt->getContentSize().height / 2;
+
+            CCPoint pos;
+
+            switch (i) {
+            case 0:
+                pos = ccp(centerX - MedioW + BgMedioW, centerY - MedioH + BgMedioH);
+                break;
+            case 1:
+                sideArt->setFlipY(true);
+                pos = ccp(centerX - MedioW + BgMedioW, centerY + MedioH - BgMedioH);
+                break;
+            }
+
+            sideArt->setPosition(pos);
+            m_mainLayer->addChild(sideArt);
+        }
+
+    
+        m_tabMenu = CCMenu::create();
+        m_tabMenu->setPosition(0, 0);
+        m_mainLayer->addChild(m_tabMenu, 2);
+
+        float tabY = bgSize.height - 38.0f;
+        float tabSpacing = 75.0f;
+
+        auto stickerTabSpr = ButtonSprite::create("Stickers", "bigFont.fnt", "GJ_button_01.png", 0.6f);
+        stickerTabSpr->setScale(0.6f);
+        auto stickerTabBtn = CCMenuItemSpriteExtra::create(stickerTabSpr, this, menu_selector(StickersPopup::onTabStickers));
+        stickerTabBtn->setPosition({ centerX - tabSpacing / 2.0f, tabY });
+        m_tabMenu->addChild(stickerTabBtn);
+
+        auto gifTabSpr = ButtonSprite::create("Gifs", "bigFont.fnt", "GJ_button_01.png", 0.6f);
+        gifTabSpr->setScale(0.6f);
+        auto gifTabBtn = CCMenuItemSpriteExtra::create(gifTabSpr, this, menu_selector(StickersPopup::onTabGifs));
+        gifTabBtn->setPosition({ centerX + tabSpacing / 2.0f, tabY });
+        m_tabMenu->addChild(gifTabBtn);
+
+        
+        m_scrollBG = CCScale9Sprite::create("square02b_001.png");
+        m_scrollBG->setColor({ 0, 0, 0 });
+        m_scrollBG->setOpacity(80);
+        m_scrollBG->setContentSize({ m_scrollW, m_scrollH });
+        m_scrollBG->setPosition({ centerX, m_scrollY });
+        m_mainLayer->addChild(m_scrollBG);
+
+        loadTab(0);
+
+        return true;
+    }
+
+    void loadTab(int tab) {
+        m_currentTab = tab;
+
+        if (m_scroll) {
+            m_scroll->removeFromParent();
+            m_scroll = nullptr;
+        }
+        if (m_scrollbar) {
+            m_scrollbar->removeFromParent();
+            m_scrollbar = nullptr;
+        }
+
+        auto bgSize = m_mainLayer->getContentSize();
+        float centerX = bgSize.width / 2.0f;
+
+        std::vector<std::string> commands;
+
+        if (tab == 0) {
+            commands = StickerManager::getStickerCommands();
+        }
+        else {
+            commands = StickerManager::getGifCommands();
+        }
+
+        m_scroll = ScrollLayer::create({ m_scrollW, m_scrollH });
+        m_scroll->setPosition({
+            centerX - m_scrollW / 2.0f,
+            m_scrollY - m_scrollH / 2.0f
+            });
+        m_mainLayer->addChild(m_scroll);
+
+        m_scrollbar = Scrollbar::create(m_scroll);
+        m_scrollbar->setPosition({ centerX + m_scrollW / 2.0f + 12.0f, m_scrollY });
+        m_mainLayer->addChild(m_scrollbar);
+
+        int columns = 4;
+        float cellSize = 55.0f;
+        float padX = (m_scrollW - (columns * cellSize)) / 2.0f;
+
+        int rows = (static_cast<int>(commands.size()) + columns - 1) / columns;
+
+        float totalHeight = rows * cellSize;
+        if (totalHeight < m_scrollH) totalHeight = m_scrollH;
+
+        m_scroll->m_contentLayer->setContentSize({ m_scrollW, totalHeight });
+
+        auto menu = CCMenu::create();
+         
+        menu->setContentSize({ m_scrollW, totalHeight });
+        menu->setPosition({ 0, 0 });
+        m_scroll->m_contentLayer->addChild(menu);
+
+        for (size_t i = 0; i < commands.size(); i++) {
+            int col = static_cast<int>(i) % columns;
+            int row = static_cast<int>(i) / columns;
+
+            float x = padX + (col * cellSize) + cellSize / 2.0f;
+            float y = totalHeight - (row * cellSize) - cellSize / 2.0f;
+
+         
+            auto container = CCSprite::create();
+            container->setContentSize({ cellSize, cellSize });
+
+            auto spr = StickerManager::createStickerPreview(commands[i]);
+            if (spr) {
+                float maxSize = 40.0f;
+                auto sprSize = spr->getContentSize();
+                float scale = 1.0f;
+                if (sprSize.width > 0 && sprSize.height > 0) {
+                    float scaleX = maxSize / sprSize.width;
+                    float scaleY = maxSize / sprSize.height;
+                    scale = std::min(scaleX, scaleY);
+                    if (scale > 1.0f) scale = 1.0f;
+                }
+                spr->setScale(scale);
+
+                spr->setPosition({ cellSize / 2.0f, cellSize / 2.0f });
+                container->addChild(spr);
+            }
+
+            auto btn = CCMenuItemSpriteExtra::create(container, this, menu_selector(StickersPopup::onSelectSticker));
+            btn->setID(commands[i]);
+            btn->setPosition({ x, y });
+            menu->addChild(btn);
+        }
+
+     
+        m_scroll->m_contentLayer->setPositionY(m_scrollH - totalHeight);
+
+        if (this->isRunning()) {
+            geode::cocos::handleTouchPriority(this);
+        }
+    }
+
+    void onTabStickers(CCObject* sender) {
+        if (m_currentTab == 0) return;
+        loadTab(0);
+    }
+
+    void onTabGifs(CCObject* sender) {
+        if (m_currentTab == 1) return;
+        loadTab(1);
+    }
+
+    void onInfo(CCObject* sender) {
+        std::string Info =
+            "Los <cg>Stickers</c> son imagenes para usar en el chat.\n"
+            "Los <cy>Gifs</c> son imagenes animadas.\n"
+            "<cr>Solo se envia el sticker/gif</c>\n"
+            "No se puede mezclar con texto.";
+
+        FLAlertLayer::create(nullptr, "Stickers & Gifs", Info.c_str(), "Okei", nullptr, 360)->show();
+    }
+
+    void onSelectSticker(CCObject* sender) {
+        auto btn = static_cast<CCMenuItemSpriteExtra*>(sender);
+        if (btn && m_callback) {
+            m_callback(btn->getID());
+        }
+        this->onClose(sender);
+    }
+
+    void onClose(CCObject* sender) override {
+        Popup::onClose(sender);
+    }
+
+public:
+    static StickersPopup* create(std::function<void(std::string)> callback) {
+        auto ret = new StickersPopup();
+        if (ret && ret->init(callback)) {
+            ret->autorelease();
+            return ret;
+        }
+        CC_SAFE_DELETE(ret);
+        return nullptr;
+    }
+};

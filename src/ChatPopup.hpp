@@ -20,7 +20,6 @@ protected:
     ScrollLayer* m_contactsScroll = nullptr;
 
     CCNode* m_typingNode = nullptr;
-    SimplePlayer* m_typingIcon = nullptr;
 
     std::vector<std::pair<CCNode*, float>> m_messages;
 
@@ -82,6 +81,34 @@ protected:
         }
     }
 
+    bool isMouseOverNode(CCNode* node, CCPoint worldPos) {
+        if (!node || !node->isVisible()) return false;
+        auto local = node->convertToNodeSpace(worldPos);
+        auto size = node->getContentSize();
+        return local.x >= 0 && local.x <= size.width &&
+               local.y >= 0 && local.y <= size.height;
+    }
+
+    void setupScrollMouseHandling(float dt) {
+        auto dispatcher = CCDirector::sharedDirector()->getMouseDispatcher();
+        if (m_scrollLayer) dispatcher->removeDelegate(m_scrollLayer);
+        if (m_contactsScroll) dispatcher->removeDelegate(m_contactsScroll);
+        dispatcher->addDelegate(static_cast<CCMouseDelegate*>(this));
+    }
+
+    void scrollWheel(float y, float x) override {
+        auto mousePos = geode::cocos::getMousePos();
+
+        if (m_contactsScroll && isMouseOverNode(m_contactsScroll, mousePos)) {
+            m_contactsScroll->scrollWheel(y, x);
+            return;
+        }
+        if (m_scrollLayer && isMouseOverNode(m_scrollLayer, mousePos)) {
+            m_scrollLayer->scrollWheel(y, x);
+            return;
+        }
+    }
+
     bool init(ContactInfo* preOpenContact) {
         if (!Popup::init(420.f, 260.f, "GJ_ChatBg_001.png"_spr)) return false;
         cargarPrioridad();
@@ -103,6 +130,7 @@ protected:
 
         m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) {
             if (mensajes.size() == m_lastMessageCount) return;
+            bool isNewMessage = m_lastMessageCount > 0 && mensajes.size() > m_lastMessageCount;
             m_lastMessageCount = mensajes.size();
             auto am = GJAccountManager::sharedState();
             std::string myId = std::to_string(am->m_accountID);
@@ -110,7 +138,8 @@ protected:
             for (size_t idx = 0; idx < mensajes.size(); ++idx) {
                 const auto& msg = mensajes[idx];
                 bool isMe = (msg.senderId == myId);
-                bool animateThis = m_animateLastSent && isMe && (idx == mensajes.size() - 1);
+                bool isLast = (idx == mensajes.size() - 1);
+                bool animateThis = isLast && (m_animateLastSent || isNewMessage);
                 this->addMessage(msg.texto, isMe, animateThis);
             }
             m_animateLastSent = false;
@@ -217,19 +246,32 @@ protected:
         m_typingNode->setVisible(false);
         m_mainLayer->addChild(m_typingNode);
 
-        for (int i = 0; i < 3; i++) {
-            auto dot = CCLabelBMFont::create(".", "bigFont.fnt");
-            dot->setScale(0.6f);
-            dot->setPosition({ 20.0f + (i * 10.0f), -4.0f });
-            m_typingNode->addChild(dot);
+       
+        auto typingBubble = CCScale9Sprite::create("square02b_001.png", { 0.0f, 0.0f, 80.0f, 80.0f });
+        typingBubble->setContentSize({ 30.0f, 15.0f });
+        typingBubble->setColor({ 0, 0, 0 });
+        typingBubble->setOpacity(120);
+        typingBubble->setInsetLeft(5);
+        typingBubble->setInsetRight(5);
+        typingBubble->setInsetTop(5);
+        typingBubble->setInsetBottom(5);
+        typingBubble->setAnchorPoint({ 0.0f, 0.5f });
+        typingBubble->setPosition({ 0.0f, -4.0f });
+        m_typingNode->addChild(typingBubble);
 
-            auto delayBefore = CCDelayTime::create(i * 0.15f);
-           
-            auto moveUp = CCEaseExponentialIn::create(CCMoveBy::create(0.3f, CCPoint(0.0f, 5.0f)));
-            auto moveDown = CCEaseBackOut::create(CCMoveBy::create(0.3f, CCPoint(0.0f, -5.0f)));
-           
-            auto delayAfter = CCDelayTime::create(1.0f - (i * 0.15f) - 0.3f);
-            auto seq = CCSequence::create(delayBefore, moveUp, moveDown, delayAfter, nullptr);
+        for (int i = 0; i < 3; i++) {
+            auto dot = CCSprite::create("square02b_001.png");
+            dot->setScale(0.03f);
+            dot->setColor({ 200, 200, 200 });
+            dot->setOpacity(200);
+            dot->setPosition({ 8.0f + (i * 7.0f), 7.5f });
+            typingBubble->addChild(dot);
+
+            auto delayBefore = CCDelayTime::create(i * 0.2f);
+            auto fadeIn = CCEaseSineOut::create(CCScaleTo::create(0.25f, 0.045f));
+            auto fadeOut = CCEaseSineIn::create(CCScaleTo::create(0.25f, 0.02f));
+            auto delayAfter = CCDelayTime::create(0.6f - (i * 0.2f));
+            auto seq = CCSequence::create(delayBefore, fadeIn, fadeOut, delayAfter, nullptr);
             dot->runAction(CCRepeatForever::create(seq));
         }
 
@@ -290,18 +332,12 @@ protected:
             m_activeChatName = preOpenContact->username;
             m_activeContact = *preOpenContact;
 
-            auto gm = GameManager::sharedState();
-            m_typingIcon = SimplePlayer::create(m_activeContact.icon);
-            m_typingIcon->setColor(gm->colorForIdx(m_activeContact.col1));
-            m_typingIcon->setSecondColor(gm->colorForIdx(m_activeContact.col2));
-            if (m_activeContact.glow) m_typingIcon->setGlowOutline(gm->colorForIdx(m_activeContact.glow));
-            m_typingIcon->setScale(0.6f);
-            m_typingIcon->setPosition({ 2.0f, -7.0f });
-            m_typingNode->addChild(m_typingIcon);
-
             auto am = GJAccountManager::sharedState();
             m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
         }
+
+         
+        this->scheduleOnce(schedule_selector(ChatPopup::setupScrollMouseHandling), 0.0f);
 
         return true;
     }
@@ -473,19 +509,6 @@ protected:
                 break;
             }
         }
-
-        if (m_typingIcon) {
-            m_typingIcon->removeFromParent();
-            m_typingIcon = nullptr;
-        }
-        auto gm = GameManager::sharedState();
-        m_typingIcon = SimplePlayer::create(m_activeContact.icon);
-        m_typingIcon->setColor(gm->colorForIdx(m_activeContact.col1));
-        m_typingIcon->setSecondColor(gm->colorForIdx(m_activeContact.col2));
-        if (m_activeContact.glow) m_typingIcon->setGlowOutline(gm->colorForIdx(m_activeContact.glow));
-        m_typingIcon->setScale(0.6f);
-        m_typingIcon->setPosition({ 2.0f, -7.0f });
-        m_typingNode->addChild(m_typingIcon);
 
         limpiarChat(true);
 
@@ -783,6 +806,8 @@ protected:
             m_contactsNetwork->setOnContactsLoaded(nullptr);
             m_contactsNetwork->release(); m_contactsNetwork = nullptr;
         }
+        
+        CCDirector::sharedDirector()->getMouseDispatcher()->removeDelegate(static_cast<CCMouseDelegate*>(this));
         Popup::onClose(sender);
     }
 

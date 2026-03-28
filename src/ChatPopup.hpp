@@ -20,6 +20,7 @@ protected:
     ScrollLayer* m_contactsScroll = nullptr;
 
     CCNode* m_typingNode = nullptr;
+    CCScale9Sprite* m_contactIndicator = nullptr;
 
     std::vector<std::pair<CCNode*, float>> m_messages;
 
@@ -336,7 +337,7 @@ protected:
             m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
         }
 
-         
+       
         this->scheduleOnce(schedule_selector(ChatPopup::setupScrollMouseHandling), 0.0f);
 
         return true;
@@ -397,7 +398,7 @@ protected:
         m_contactsScroll->m_contentLayer->removeAllChildren();
         float contactsWidth = 40.0f; float spacing = 38.0f; float scrollH = m_chatHeight - 20.0f;
 
-        // +1 para el contacto de anuncios del mod
+      
         size_t totalItems = contactos.size() + 1;
         float totalHeight = spacing * totalItems;
         if (totalHeight < scrollH) totalHeight = scrollH;
@@ -480,6 +481,31 @@ protected:
         if (minY > 0.0f) minY = 0.0f;
         m_contactsScroll->m_contentLayer->setPositionY(minY);
 
+        
+        m_contactIndicator = CCScale9Sprite::create("square02b_001.png", { 0.0f, 0.0f, 80.0f, 80.0f });
+        m_contactIndicator->setContentSize({ 3.0f, 20.0f });
+        m_contactIndicator->setInsetLeft(1);
+        m_contactIndicator->setInsetRight(1);
+        m_contactIndicator->setInsetTop(1);
+        m_contactIndicator->setInsetBottom(1);
+        m_contactIndicator->setColor({ 255, 255, 255 });
+        m_contactIndicator->setOpacity(220);
+        m_contactIndicator->setAnchorPoint({ 0.0f, 0.5f });
+        m_contactIndicator->setVisible(false);
+        m_contactsScroll->m_contentLayer->addChild(m_contactIndicator, 5);
+
+     
+        if (!m_activeChatId.empty()) {
+            for (size_t i = 0; i < contactos.size(); i++) {
+                if (contactos[i].accountId == m_activeChatId) {
+                    float btnY = totalHeight - (spacing * (i + 1)) - spacing + spacing / 2;
+                    m_contactIndicator->setPosition({ 0.0f, btnY });
+                    m_contactIndicator->setVisible(true);
+                    break;
+                }
+            }
+        }
+
        
         if (this->isRunning()) {
             geode::cocos::handleTouchPriority(this);
@@ -507,6 +533,36 @@ protected:
                 m_activeContact = c;
                 m_activeChatName = c.username;
                 break;
+            }
+        }
+
+        
+        if (m_contactIndicator) {
+            float spacing = 38.0f;
+            float scrollH = m_chatHeight - 20.0f;
+            float totalHeight = spacing * (m_contactList.size() + 1);
+            if (totalHeight < scrollH) totalHeight = scrollH;
+
+            for (size_t i = 0; i < m_contactList.size(); i++) {
+                if (m_contactList[i].accountId == m_activeChatId) {
+                    float targetY = totalHeight - (i + 2) * spacing + spacing / 2.0f;
+                    m_contactIndicator->stopAllActions();
+
+                    if (!m_contactIndicator->isVisible()) {
+                        
+                        m_contactIndicator->setPosition({ 0.0f, targetY });
+                        m_contactIndicator->setVisible(true);
+                        m_contactIndicator->setOpacity(0);
+                        m_contactIndicator->runAction(CCFadeIn::create(0.2f));
+                    } else {
+                      
+                        auto slideTo = CCEaseExponentialOut::create(
+                            CCMoveTo::create(0.25f, ccp(0.0f, targetY))
+                        );
+                        m_contactIndicator->runAction(slideTo);
+                    }
+                    break;
+                }
             }
         }
 
@@ -806,7 +862,7 @@ protected:
             m_contactsNetwork->setOnContactsLoaded(nullptr);
             m_contactsNetwork->release(); m_contactsNetwork = nullptr;
         }
-        
+        // Desregistrar el mouse delegate
         CCDirector::sharedDirector()->getMouseDispatcher()->removeDelegate(static_cast<CCMouseDelegate*>(this));
         Popup::onClose(sender);
     }

@@ -10,38 +10,40 @@
 #include "StickerManager.hpp" 
 #include "StickersPopup.hpp"  
 #include "CommunityPopup.hpp"
+#include "CommunityAddMemberPopup.hpp"
+#include "CommunityMembersPopup.hpp"
+#include "CommunityEditPopup.hpp"
 #include <fstream>
 
 using namespace geode::prelude;
 
-class ChatPopup : public geode::Popup, public TextInputDelegate {
+class ChatPopup : public geode::Popup, public TextInputDelegate, public FLAlertLayerProtocol {
 protected:
     TextInput* m_input;
     ScrollLayer* m_scrollLayer;
     ScrollLayer* m_contactsScroll = nullptr;
-
-    CCNode* m_typingNode = nullptr;
     CCScale9Sprite* m_contactIndicator = nullptr;
-
     std::vector<std::pair<CCNode*, float>> m_messages;
-
     ChatNetwork* m_network = nullptr;
     ContactsNetwork* m_contactsNetwork = nullptr;
-
     std::vector<ContactInfo> m_contactList;
     static inline std::vector<std::string> s_contactPriority;
     ContactInfo m_activeContact;
     std::string m_activeChatId = "";
     std::string m_activeChatName = "";
-
     size_t m_lastMessageCount = 0;
-    bool m_isTyping = false;
+    std::string m_lastMessageText = "";
     bool m_closedByBubble = false;
     bool m_animateLastSent = false;
-
     float m_chatWidth = 310.0f;
     float m_chatHeight = 200.0f;
     float m_scrollHeight = 145.0f;
+    CCLabelBMFont* m_chatSubtitle = nullptr;
+    CCMenuItemSpriteExtra* m_addMemberBtn = nullptr;
+    CCMenuItemSpriteExtra* m_membersBtn = nullptr;
+    CCMenuItemSpriteExtra* m_editCommunityBtn = nullptr;
+    CCMenuItemSpriteExtra* m_deleteCommunityBtn = nullptr;
+    CommunityNetwork* m_communityNet = nullptr;
 
     std::string applySmartWrapping(const std::string& input, int maxCharsPerLine = 28) {
         std::string result;
@@ -51,56 +53,58 @@ protected:
             char c = input[i];
             result += c;
             currentLineLength++;
-            if (c == ' ') lastSpaceIndexInResult = static_cast<int>(result.length()) - 1;
-            else if (c == '\n') { currentLineLength = 0; lastSpaceIndexInResult = -1; }
+            if (c == ' ') {
+                lastSpaceIndexInResult = static_cast<int>(result.length()) - 1;
+            }
+            else if (c == '\n') {
+                currentLineLength = 0;
+                lastSpaceIndexInResult = -1;
+            }
             if (currentLineLength >= maxCharsPerLine) {
                 if (lastSpaceIndexInResult != -1) {
                     result[lastSpaceIndexInResult] = '\n';
                     currentLineLength = static_cast<int>(result.length()) - 1 - lastSpaceIndexInResult;
                     lastSpaceIndexInResult = -1;
                 }
-                else { result += "-\n"; currentLineLength = 0; lastSpaceIndexInResult = -1; }
+                else {
+                    result += "-\n";
+                    currentLineLength = 0;
+                    lastSpaceIndexInResult = -1;
+                }
             }
         }
         return result;
     }
 
     std::string truncateName(const std::string& name, size_t maxLength = 6) {
-        if (name.length() > maxLength) return name.substr(0, maxLength) + "...";
+        if (name.length() > maxLength) {
+            return name.substr(0, maxLength) + "...";
+        }
         return name;
     }
 
-    void enviarEstadoEscribiendo(bool state) {
-        if (m_activeChatId.empty()) return;
-        auto am = GJAccountManager::sharedState();
-        m_network->enviarEscribiendo(std::to_string(am->m_accountID), m_activeChatId, state);
-    }
-
-    void onStopTyping(float dt) {
-        if (m_isTyping) {
-            m_isTyping = false;
-            enviarEstadoEscribiendo(false);
-        }
-    }
-
     bool isMouseOverNode(CCNode* node, CCPoint worldPos) {
-        if (!node || !node->isVisible()) return false;
+        if (!node || !node->isVisible()) {
+            return false;
+        }
         auto local = node->convertToNodeSpace(worldPos);
         auto size = node->getContentSize();
-        return local.x >= 0 && local.x <= size.width &&
-            local.y >= 0 && local.y <= size.height;
+        return local.x >= 0 && local.x <= size.width && local.y >= 0 && local.y <= size.height;
     }
 
     void setupScrollMouseHandling(float dt) {
         auto dispatcher = CCDirector::sharedDirector()->getMouseDispatcher();
-        if (m_scrollLayer) dispatcher->removeDelegate(m_scrollLayer);
-        if (m_contactsScroll) dispatcher->removeDelegate(m_contactsScroll);
+        if (m_scrollLayer) {
+            dispatcher->removeDelegate(m_scrollLayer);
+        }
+        if (m_contactsScroll) {
+            dispatcher->removeDelegate(m_contactsScroll);
+        }
         dispatcher->addDelegate(static_cast<CCMouseDelegate*>(this));
     }
 
     void scrollWheel(float y, float x) override {
         auto mousePos = geode::cocos::getMousePos();
-
         if (m_contactsScroll && isMouseOverNode(m_contactsScroll, mousePos)) {
             m_contactsScroll->scrollWheel(y, x);
             return;
@@ -112,46 +116,107 @@ protected:
     }
 
     bool init(ContactInfo* preOpenContact) {
-        if (!Popup::init(420.f, 260.f, "GJ_ChatBg_001.png"_spr)) return false;
+        if (!Popup::init(420.f, 260.f, "GJ_ChatBg_001.png"_spr)) {
+            return false;
+        }
+
+        auto am = GJAccountManager::sharedState();
+        if (!am || am->m_accountID == 0) {
+            FLAlertLayer::create(nullptr, "Kristal", "Debes iniciar sesion en Geometry Dash para usar el chat.", "OK", nullptr, 300)->show();
+            return false;
+        }
+
         cargarPrioridad();
         std::string Channel = "Mundo";
+
         if (preOpenContact) {
             Channel = preOpenContact->username;
         }
-        this->setTitle(("Chat: " + Channel).c_str(), "bigFont.fnt", 0.6f);
+
+        auto bgSize = m_mainLayer->getContentSize();
+
+        auto titleContainer = CCNode::create();
+        titleContainer->setPosition({ bgSize.width / 2, bgSize.height - 15.0f });
+        m_mainLayer->addChild(titleContainer);
+
+        auto logoSpr = CCSprite::create("logo.png"_spr);
+        if (!logoSpr) {
+            logoSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
+        }
+        logoSpr->setScale(0.15f);
+
+        auto kristalLabel = CCLabelBMFont::create("Kristal", "bigFont.fnt");
+        kristalLabel->setScale(0.6f);
+
+        float logoW = logoSpr->getScaledContentSize().width;
+        float textW = kristalLabel->getScaledContentSize().width;
+        float spacing = 8.0f;
+        float totalW = logoW + spacing + textW;
+
+        logoSpr->setPosition({ -totalW / 2 + logoW / 2, -1.0f });
+        kristalLabel->setPosition({ totalW / 2 - textW / 2, 0.0f });
+
+        titleContainer->addChild(logoSpr);
+        titleContainer->addChild(kristalLabel);
+
+        m_chatSubtitle = CCLabelBMFont::create(("Chat: " + Channel).c_str(), "chatFont.fnt");
+        m_chatSubtitle->setScale(0.45f);
+        m_chatSubtitle->setColor({ 200, 200, 200 });
+        m_chatSubtitle->setPosition({ bgSize.width / 2, bgSize.height - 30.0f });
+        m_mainLayer->addChild(m_chatSubtitle);
 
         ChatBubble::sharedBubble()->hide();
 
         ChatBubble::sharedBubble()->setupCallback([](ContactInfo info) {
             auto popup = info.accountId.empty() ? ChatPopup::create() : ChatPopup::create(&info);
-            if (popup) popup->show();
+            if (popup) {
+                popup->show();
+            }
             });
 
         m_network = ChatNetwork::create();
         m_network->retain();
+m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) {
+            if (mensajes.empty()) {
+                if (m_lastMessageCount > 0) {
+                    this->limpiarChat(true);
+                }
+                return;
+            }
 
-        m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) {
-            if (mensajes.size() == m_lastMessageCount) return;
-            bool isNewMessage = m_lastMessageCount > 0 && mensajes.size() > m_lastMessageCount;
+            std::string currentLastText = mensajes.back().texto;
+            bool isSameSize = (mensajes.size() == m_lastMessageCount);
+            bool isSameLastMsg = (currentLastText == m_lastMessageText);
+
+            if (isSameSize && isSameLastMsg) {
+                return;
+            }
+
+         
+            bool isInitialLoad = (m_lastMessageCount == 0);
+            
+            bool isNewMessage = !isSameLastMsg || mensajes.size() > m_lastMessageCount;
             m_lastMessageCount = mensajes.size();
+            m_lastMessageText = currentLastText;
+
             auto am = GJAccountManager::sharedState();
             std::string myId = std::to_string(am->m_accountID);
+
             this->limpiarChat(false);
+
             for (size_t idx = 0; idx < mensajes.size(); ++idx) {
                 const auto& msg = mensajes[idx];
                 bool isMe = (msg.senderId == myId);
                 bool isLast = (idx == mensajes.size() - 1);
-                bool animateThis = isLast && (m_animateLastSent || isNewMessage);
-                this->addMessage(msg.texto, isMe, animateThis);
+                
+                // MODIFICADO: Agregamos la condición !isInitialLoad
+                // Solo animará si fue el último que enviaste tú, o si es un mensaje nuevo PERO no es la carga inicial del chat.
+                bool animateThis = isLast && (m_animateLastSent || (isNewMessage && !isMe && !isInitialLoad));
+                
+                this->addMessage(msg, isMe, animateThis);
             }
             m_animateLastSent = false;
-            });
-
-        m_network->setOnTypingStatus([this](bool isTyping) {
-            if (m_typingNode && !m_activeChatId.empty()) {
-                m_typingNode->setVisible(isTyping);
-            }
-            });
+        });
 
         m_contactsNetwork = ContactsNetwork::create();
         m_contactsNetwork->retain();
@@ -161,53 +226,21 @@ protected:
             this->mostrarContactos(m_contactList);
             });
 
-        auto bgSize = m_mainLayer->getContentSize();
-
         float contactsWidth = 40.0f;
         auto contactsBG = CCScale9Sprite::create("square02b_001.png", { 0.0f, 0.0f, 80.0f, 80.0f });
         contactsBG->setColor({ 0, 0, 0 });
         contactsBG->setOpacity(100);
         contactsBG->setContentSize({ contactsWidth, m_chatHeight });
-
         contactsBG->setPosition({ bgSize.width / 2 - 168.0f, bgSize.height / 2 - 5.0f });
-
-
         contactsBG->setInsetLeft(10);
         contactsBG->setInsetRight(10);
         contactsBG->setInsetTop(10);
         contactsBG->setInsetBottom(10);
-
         m_mainLayer->addChild(contactsBG);
-
 
         auto fixedMenu = CCMenu::create();
         fixedMenu->setPosition({ 0, 0 });
         m_mainLayer->addChild(fixedMenu, 2);
-
-
-        float topMenuY = bgSize.height - 20.0f;
-
-
-        auto bubbleSprite = CCSprite::createWithSpriteFrameName("BubbleChatSpr.png"_spr);
-        bubbleSprite->setScale(0.55f);
-        auto bubbleBtn = CCMenuItemSpriteExtra::create(bubbleSprite, this, menu_selector(ChatPopup::onToggleBubble));
-        bubbleBtn->setPosition({ bgSize.width - 30.0f, topMenuY });
-        fixedMenu->addChild(bubbleBtn);
-
-
-        auto addContactSprite = CCSprite::createWithSpriteFrameName("AddContanctSpr.png"_spr);
-        addContactSprite->setScale(0.55f);
-        auto addContactBtn = CCMenuItemSpriteExtra::create(addContactSprite, this, menu_selector(ChatPopup::onOpenAddContact));
-        addContactBtn->setPosition({ bgSize.width - 65.0f, topMenuY });
-        fixedMenu->addChild(addContactBtn);
-
-      
-        auto communitySprite = CCSprite::createWithSpriteFrameName("GJ_chatBtn_001.png");
-        communitySprite->setScale(0.45f);
-        auto communityBtn = CCMenuItemSpriteExtra::create(communitySprite, this, menu_selector(ChatPopup::onOpenCommunity));
-        communityBtn->setPosition({ bgSize.width - 100.0f, topMenuY });
-        fixedMenu->addChild(communityBtn);
-
 
         auto InfoSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
         auto InfoBtn = CCMenuItemSpriteExtra::create(InfoSpr, this, menu_selector(ChatPopup::onInfo));
@@ -215,21 +248,67 @@ protected:
         InfoBtn->setZOrder(10);
         fixedMenu->addChild(InfoBtn);
 
+        auto addMemberSpr = CCSprite::createWithSpriteFrameName("GJ_plusBtn_001.png");
+        m_addMemberBtn = CCMenuItemSpriteExtra::create(addMemberSpr, this, menu_selector(ChatPopup::onAddCommunityMember));
+        m_addMemberBtn->setPosition({ bgSize.width - 45.0f, 15.0f });
+        addMemberSpr->setScale(0.3f);
+        m_addMemberBtn->setZOrder(10);
+        m_addMemberBtn->setVisible(false);
+        fixedMenu->addChild(m_addMemberBtn);
+
+        auto membersSpr = CCSprite::createWithSpriteFrameName("GJ_longBtn05_001.png");
+        membersSpr->setScale(0.45f);
+        m_membersBtn = CCMenuItemSpriteExtra::create(membersSpr, this, menu_selector(ChatPopup::onShowMembers));
+        m_membersBtn->setPosition({ bgSize.width - 75.0f, 15.0f });
+        m_membersBtn->setZOrder(10);
+        m_membersBtn->setVisible(false);
+        fixedMenu->addChild(m_membersBtn);
+
+        auto editSpr = CCSprite::createWithSpriteFrameName("GJ_editBtn_001.png");
+        editSpr->setScale(0.2f);
+        m_editCommunityBtn = CCMenuItemSpriteExtra::create(editSpr, this, menu_selector(ChatPopup::onEditCommunity));
+        m_editCommunityBtn->setPosition({ bgSize.width - 105.0f, 15.0f });
+        m_editCommunityBtn->setZOrder(10);
+        m_editCommunityBtn->setVisible(false);
+        fixedMenu->addChild(m_editCommunityBtn);
+
+        auto deleteSpr = CCSprite::createWithSpriteFrameName("GJ_trashBtn_001.png");
+        deleteSpr->setScale(0.4f);
+        m_deleteCommunityBtn = CCMenuItemSpriteExtra::create(deleteSpr, this, menu_selector(ChatPopup::onDeleteCommunity));
+        m_deleteCommunityBtn->setPosition({ bgSize.width - 135.0f, 15.0f });
+        m_deleteCommunityBtn->setZOrder(10);
+        m_deleteCommunityBtn->setVisible(false);
+        fixedMenu->addChild(m_deleteCommunityBtn);
+
+
+        auto sideMenu = CCMenu::create();
+        sideMenu->setPosition({ bgSize.width + 25.0f, bgSize.height / 2 + 10.0f });
+        m_mainLayer->addChild(sideMenu, 2);
+
+        auto bubbleSprite = CCSprite::createWithSpriteFrameName("BubbleChatSpr.png"_spr);
+        bubbleSprite->setScale(0.55f);
+        auto bubbleBtn = CCMenuItemSpriteExtra::create(bubbleSprite, this, menu_selector(ChatPopup::onToggleBubble));
+        sideMenu->addChild(bubbleBtn);
+
+        auto addContactSprite = CCSprite::createWithSpriteFrameName("AddContanctSpr.png"_spr);
+        addContactSprite->setScale(0.55f);
+        auto addContactBtn = CCMenuItemSpriteExtra::create(addContactSprite, this, menu_selector(ChatPopup::onOpenAddContact));
+        sideMenu->addChild(addContactBtn);
+
+        auto communitySprite = CCSprite::createWithSpriteFrameName("GJ_chatBtn_001.png");
+        communitySprite->setScale(0.45f);
+        auto communityBtn = CCMenuItemSpriteExtra::create(communitySprite, this, menu_selector(ChatPopup::onOpenCommunity));
+        sideMenu->addChild(communityBtn);
+
+        sideMenu->alignItemsVerticallyWithPadding(15.0f);
 
         float contactsScrollH = m_chatHeight - 20.0f;
         m_contactsScroll = ScrollLayer::create({ contactsWidth, contactsScrollH });
-        m_contactsScroll->setPosition({
-            contactsBG->getPositionX() - contactsWidth / 2,
-            contactsBG->getPositionY() - contactsScrollH / 2
-            });
+        m_contactsScroll->setPosition({ contactsBG->getPositionX() - contactsWidth / 2, contactsBG->getPositionY() - contactsScrollH / 2 });
         m_mainLayer->addChild(m_contactsScroll, 1);
 
-
         auto contactsScrollbar = Scrollbar::create(m_contactsScroll);
-        contactsScrollbar->setPosition({
-            contactsBG->getPositionX() - (contactsWidth / 2) - 10.0f,
-            contactsBG->getPositionY()
-            });
+        contactsScrollbar->setPosition({ contactsBG->getPositionX() - (contactsWidth / 2) - 10.0f, contactsBG->getPositionY() });
         m_mainLayer->addChild(contactsScrollbar);
 
         auto chatBG = CCScale9Sprite::create("square02b_001.png");
@@ -240,55 +319,17 @@ protected:
         m_mainLayer->addChild(chatBG);
 
         m_scrollLayer = ScrollLayer::create({ m_chatWidth, m_scrollHeight });
-        m_scrollLayer->setPosition({
-            chatBG->getPositionX() - m_chatWidth / 2,
-            chatBG->getPositionY() - m_chatHeight / 2 + 45.0f
-            });
+        m_scrollLayer->setPosition({ chatBG->getPositionX() - m_chatWidth / 2, chatBG->getPositionY() - m_chatHeight / 2 + 45.0f });
         m_mainLayer->addChild(m_scrollLayer);
 
         auto scrollbar = Scrollbar::create(m_scrollLayer);
         scrollbar->setPosition({ chatBG->getPositionX() + m_chatWidth / 2 + 12.0f, chatBG->getPositionY() + 20.0f });
         m_mainLayer->addChild(scrollbar);
 
-        m_typingNode = CCNode::create();
-        m_typingNode->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 20.0f, chatBG->getPositionY() - m_chatHeight / 2 + 55.0f });
-        m_typingNode->setVisible(false);
-        m_mainLayer->addChild(m_typingNode);
-
-
-        auto typingBubble = CCScale9Sprite::create("square02b_001.png", { 0.0f, 0.0f, 80.0f, 80.0f });
-        typingBubble->setContentSize({ 30.0f, 15.0f });
-        typingBubble->setColor({ 0, 0, 0 });
-        typingBubble->setOpacity(120);
-        typingBubble->setInsetLeft(5);
-        typingBubble->setInsetRight(5);
-        typingBubble->setInsetTop(5);
-        typingBubble->setInsetBottom(5);
-        typingBubble->setAnchorPoint({ 0.0f, 0.5f });
-        typingBubble->setPosition({ 0.0f, -4.0f });
-        m_typingNode->addChild(typingBubble);
-
-        for (int i = 0; i < 3; i++) {
-            auto dot = CCSprite::create("square02b_001.png");
-            dot->setScale(0.03f);
-            dot->setColor({ 200, 200, 200 });
-            dot->setOpacity(200);
-            dot->setPosition({ 8.0f + (i * 7.0f), 7.5f });
-            typingBubble->addChild(dot);
-
-            auto delayBefore = CCDelayTime::create(i * 0.2f);
-            auto fadeIn = CCEaseSineOut::create(CCScaleTo::create(0.25f, 0.045f));
-            auto fadeOut = CCEaseSineIn::create(CCScaleTo::create(0.25f, 0.02f));
-            auto delayAfter = CCDelayTime::create(0.6f - (i * 0.2f));
-            auto seq = CCSequence::create(delayBefore, fadeIn, fadeOut, delayAfter, nullptr);
-            dot->runAction(CCRepeatForever::create(seq));
-        }
-
         auto inputMenu = CCMenu::create();
         inputMenu->setPosition({ 0, 0 });
         inputMenu->setZOrder(1);
         m_mainLayer->addChild(inputMenu);
-
 
         auto stickerBtnSprite = CCSprite::createWithSpriteFrameName("EmojiSpr.png"_spr);
         stickerBtnSprite->setScale(0.5f);
@@ -296,35 +337,26 @@ protected:
         stickerBtn->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 224.0f, chatBG->getPositionY() - m_chatHeight / 2 + 22.0f });
         inputMenu->addChild(stickerBtn);
 
-
         auto ImputBg = CCScale9Sprite::create("square02_small.png", CCRectMake(0.0f, 0.0f, 40.0f, 40.0f));
-        ImputBg->setContentSize({ 235.0f, 30.0f }); ///235, 30
+        ImputBg->setContentSize({ 235.0f, 30.0f });
         ImputBg->setOpacity(90);
         ImputBg->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 126.0f, chatBG->getPositionY() - m_chatHeight / 2 + 22.0f });
-
         m_mainLayer->addChild(ImputBg);
 
         float anchoInput = m_chatWidth - 120.0f;
         m_input = TextInput::create(anchoInput, "Escribe un mensaje...", "chatFont.fnt");
-
         m_input->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 110.0f, chatBG->getPositionY() - m_chatHeight / 2 + 22.0f });
         m_input->getBGSprite()->setVisible(false);
         m_input->setTextAlign(geode::TextInputAlign::Left);
         m_input->getInputNode()->setDelegate(this);
-        m_input->getInputNode()->setAllowedChars(
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            "0123456789 !@#$%^&*()-_=+[]{}|;:',.<>?/`~\"\\Ññ"
-        );
+        m_input->getInputNode()->setAllowedChars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !@#$%^&*()-_=+[]{}|;:',.<>?/`~\"\\Ññ");
         m_mainLayer->addChild(m_input);
 
         auto sendBtnSprite = CCSprite::createWithSpriteFrameName("SendSpr.png"_spr);
         sendBtnSprite->setScale(0.5f);
-
         auto sendBtn = CCMenuItemSpriteExtra::create(sendBtnSprite, this, menu_selector(ChatPopup::onSend));
-
         sendBtn->setPosition({ chatBG->getPositionX() + (m_chatWidth / 2) - 48.0f, m_input->getPositionY() });
         inputMenu->addChild(sendBtn);
-
 
         auto SharedSpr = CCSprite::createWithSpriteFrameName("Shared.png"_spr);
         SharedSpr->setScale(0.5f);
@@ -332,7 +364,9 @@ protected:
         SharedBtn->setPosition({ chatBG->getPositionX() + (m_chatWidth / 2) - 20.0f, m_input->getPositionY() });
         inputMenu->addChild(SharedBtn);
 
-        this->schedule(schedule_selector(ChatPopup::onPollServer), 2.0f);
+        this->schedule(schedule_selector(ChatPopup::onPollServer), 3.5f);
+        this->schedule(schedule_selector(ChatPopup::onPollContacts), 15.0f);
+
         m_network->registrarJugador();
         m_contactsNetwork->cargarContactos();
 
@@ -340,11 +374,8 @@ protected:
             m_activeChatId = preOpenContact->accountId;
             m_activeChatName = preOpenContact->username;
             m_activeContact = *preOpenContact;
-
-            auto am = GJAccountManager::sharedState();
             m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
         }
-
 
         this->scheduleOnce(schedule_selector(ChatPopup::setupScrollMouseHandling), 0.0f);
 
@@ -356,9 +387,82 @@ protected:
         FLAlertLayer::create(nullptr, "Reglas", Info.c_str(), "Okei", nullptr, 360)->show();
     }
 
+    void onAddCommunityMember(CCObject* sender) {
+        auto am = GJAccountManager::sharedState();
+        std::string myId = std::to_string(am->m_accountID);
+        auto popup = CommunityAddMemberPopup::create(m_activeChatId, myId);
+        if (popup) {
+            popup->show();
+        }
+    }
+
+    void onShowMembers(CCObject* sender) {
+        auto am = GJAccountManager::sharedState();
+        std::string myId = std::to_string(am->m_accountID);
+        auto popup = CommunityMembersPopup::create(m_activeChatId, myId, [this]() {
+            if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
+            });
+        if (popup) popup->show();
+    }
+
+    void onEditCommunity(CCObject* sender) {
+        auto am = GJAccountManager::sharedState();
+        std::string myId = std::to_string(am->m_accountID);
+
+        if (!m_communityNet) {
+            m_communityNet = CommunityNetwork::create();
+            m_communityNet->retain();
+        }
+        m_communityNet->setOnCommunityFound([this, myId](const CommunityInfo& info) {
+            auto popup = CommunityEditPopup::create(info.communityId, myId, info, [this]() {
+                if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
+                });
+            if (popup) popup->show();
+            });
+        m_communityNet->setOnError([](const std::string& err) {
+            FLAlertLayer::create(nullptr, "Error", err.c_str(), "OK", nullptr, 300)->show();
+            });
+        m_communityNet->buscarComunidad(m_activeChatId);
+    }
+
+    void onDeleteCommunity(CCObject* sender) {
+        auto confirm = FLAlertLayer::create(this, "Eliminar Comunidad",
+            "<cr>Estas seguro?</c>\nSe eliminara la comunidad para todos los miembros.\nEsta accion no se puede deshacer.",
+            "Cancelar", "Eliminar", 320);
+        confirm->setTag(999);
+        confirm->show();
+    }
+
+    void FLAlert_Clicked(FLAlertLayer* alert, bool btn2) override {
+        if (!btn2 || alert->getTag() != 999) return;
+        auto am = GJAccountManager::sharedState();
+        std::string myId = std::to_string(am->m_accountID);
+
+        if (!m_communityNet) {
+            m_communityNet = CommunityNetwork::create();
+            m_communityNet->retain();
+        }
+        m_communityNet->setOnCommunityDeleted([this]() {
+            FLAlertLayer::create(nullptr, "Exito", "Comunidad eliminada!", "OK", nullptr, 300)->show();
+            m_activeChatId = "";
+            m_activeChatName = "";
+            limpiarChat(true);
+            if (m_chatSubtitle) m_chatSubtitle->setString("Chat: Mundo");
+            m_addMemberBtn->setVisible(false);
+            m_membersBtn->setVisible(false);
+            m_editCommunityBtn->setVisible(false);
+            m_deleteCommunityBtn->setVisible(false);
+            if (m_contactIndicator) m_contactIndicator->setVisible(false);
+            if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
+            });
+        m_communityNet->setOnError([](const std::string& err) {
+            FLAlertLayer::create(nullptr, "Error", err.c_str(), "OK", nullptr, 300)->show();
+            });
+        m_communityNet->eliminarComunidad(myId, m_activeChatId);
+    }
+
     void onAddSticker(CCObject* sender) {
         auto popup = StickersPopup::create([this](std::string command) {
-
             m_input->setString(command);
             });
         popup->show();
@@ -374,54 +478,46 @@ protected:
 
     void onPollServer(float dt) {
         auto am = GJAccountManager::sharedState();
+        if (!am || am->m_accountID == 0) {
+            return;
+        }
         std::string myId = std::to_string(am->m_accountID);
-        if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
         if (!m_activeChatId.empty()) {
-            m_network->checkEscribiendo(myId, m_activeChatId);
             m_network->cargarMensajes(myId, m_activeChatId);
         }
     }
 
+    void onPollContacts(float dt) {
+        if (m_contactsNetwork) {
+            m_contactsNetwork->cargarContactos();
+        }
+    }
+
     virtual void textChanged(CCTextInputNode* input) override {
-        if (m_activeChatId.empty()) return;
-        std::string text = input->getString();
-        if (text.empty()) {
-            if (m_isTyping) {
-                m_isTyping = false;
-                enviarEstadoEscribiendo(false);
-                this->unschedule(schedule_selector(ChatPopup::onStopTyping));
-            }
-        }
-        else {
-            if (!m_isTyping) {
-                m_isTyping = true;
-                enviarEstadoEscribiendo(true);
-            }
-            this->unschedule(schedule_selector(ChatPopup::onStopTyping));
-            this->schedule(schedule_selector(ChatPopup::onStopTyping), 3.0f);
-        }
     }
 
     void mostrarContactos(const std::vector<ContactInfo>& contactos) {
         m_contactsScroll->m_contentLayer->removeAllChildren();
-        float contactsWidth = 40.0f; float spacing = 38.0f; float scrollH = m_chatHeight - 20.0f;
-
-
+        float contactsWidth = 40.0f;
+        float spacing = 38.0f;
+        float scrollH = m_chatHeight - 20.0f;
         size_t totalItems = contactos.size() + 1;
         float totalHeight = spacing * totalItems;
-        if (totalHeight < scrollH) totalHeight = scrollH;
+
+        if (totalHeight < scrollH) {
+            totalHeight = scrollH;
+        }
 
         m_contactsScroll->m_contentLayer->setContentSize({ contactsWidth, totalHeight });
-        auto menu = CCMenu::create(); menu->setPosition({ 0, 0 });
+        auto menu = CCMenu::create();
+        menu->setPosition({ 0, 0 });
         m_contactsScroll->m_contentLayer->addChild(menu);
 
         auto gm = GameManager::sharedState();
         float currentY = totalHeight;
 
-
         {
             currentY -= spacing;
-
             auto contactHitbox = CCSprite::create();
             contactHitbox->setContentSize({ 35.0f, 35.0f });
 
@@ -442,25 +538,26 @@ protected:
             m_contactsScroll->m_contentLayer->addChild(nameLabel);
         }
 
-
         for (size_t i = 0; i < contactos.size(); i++) {
             currentY -= spacing;
-
             auto contactHitbox = CCSprite::create();
             contactHitbox->setContentSize({ 35.0f, 35.0f });
 
             auto contactSprite = SimplePlayer::create(contactos[i].icon);
             contactSprite->setColor(gm->colorForIdx(contactos[i].col1));
             contactSprite->setSecondColor(gm->colorForIdx(contactos[i].col2));
-            if (contactos[i].glow) contactSprite->setGlowOutline(gm->colorForIdx(contactos[i].glow));
+            if (contactos[i].glow) {
+                contactSprite->setGlowOutline(gm->colorForIdx(contactos[i].glow));
+            }
             contactSprite->setScale(0.55f);
             contactSprite->setPosition({ 17.5f, 17.5f });
             contactHitbox->addChild(contactSprite);
 
             if (contactos[i].unreadCount > 0) {
                 std::string unreadText = std::to_string(contactos[i].unreadCount);
-                if (contactos[i].unreadCount > 9) unreadText = "9+";
-
+                if (contactos[i].unreadCount > 9) {
+                    unreadText = "9+";
+                }
                 auto badgeLabel = CCLabelBMFont::create(unreadText.c_str(), "bigFont.fnt");
                 badgeLabel->setScale(0.40f);
                 badgeLabel->setColor({ 255, 60, 60 });
@@ -484,11 +581,11 @@ protected:
             m_contactsScroll->m_contentLayer->addChild(nameLabel);
         }
 
-
         float minY = -(totalHeight - scrollH);
-        if (minY > 0.0f) minY = 0.0f;
+        if (minY > 0.0f) {
+            minY = 0.0f;
+        }
         m_contactsScroll->m_contentLayer->setPositionY(minY);
-
 
         m_contactIndicator = CCScale9Sprite::create("square02b_001.png", { 0.0f, 0.0f, 80.0f, 80.0f });
         m_contactIndicator->setContentSize({ 3.0f, 20.0f });
@@ -502,7 +599,6 @@ protected:
         m_contactIndicator->setVisible(false);
         m_contactsScroll->m_contentLayer->addChild(m_contactIndicator, 5);
 
-
         if (!m_activeChatId.empty()) {
             for (size_t i = 0; i < contactos.size(); i++) {
                 if (contactos[i].accountId == m_activeChatId) {
@@ -514,7 +610,6 @@ protected:
             }
         }
 
-
         if (this->isRunning()) {
             geode::cocos::handleTouchPriority(this);
         }
@@ -523,18 +618,15 @@ protected:
     void onSelectContact(CCObject* sender) {
         auto btn = static_cast<CCMenuItemSpriteExtra*>(sender);
         auto dataStr = static_cast<CCString*>(btn->getUserObject());
-        if (!dataStr) return;
+        if (!dataStr) {
+            return;
+        }
 
-        if (m_input) m_input->setString("");
-
-        if (m_isTyping) {
-            enviarEstadoEscribiendo(false);
-            m_isTyping = false;
-            this->unschedule(schedule_selector(ChatPopup::onStopTyping));
+        if (m_input) {
+            m_input->setString("");
         }
 
         m_activeChatId = dataStr->getCString();
-        m_typingNode->setVisible(false);
 
         for (const auto& c : m_contactList) {
             if (c.accountId == m_activeChatId) {
@@ -544,12 +636,13 @@ protected:
             }
         }
 
-
         if (m_contactIndicator) {
             float spacing = 38.0f;
             float scrollH = m_chatHeight - 20.0f;
             float totalHeight = spacing * (m_contactList.size() + 1);
-            if (totalHeight < scrollH) totalHeight = scrollH;
+            if (totalHeight < scrollH) {
+                totalHeight = scrollH;
+            }
 
             for (size_t i = 0; i < m_contactList.size(); i++) {
                 if (m_contactList[i].accountId == m_activeChatId) {
@@ -557,17 +650,13 @@ protected:
                     m_contactIndicator->stopAllActions();
 
                     if (!m_contactIndicator->isVisible()) {
-
                         m_contactIndicator->setPosition({ 0.0f, targetY });
                         m_contactIndicator->setVisible(true);
                         m_contactIndicator->setOpacity(0);
                         m_contactIndicator->runAction(CCFadeIn::create(0.2f));
                     }
                     else {
-
-                        auto slideTo = CCEaseExponentialOut::create(
-                            CCMoveTo::create(0.25f, ccp(0.0f, targetY))
-                        );
+                        auto slideTo = CCEaseExponentialOut::create(CCMoveTo::create(0.25f, ccp(0.0f, targetY)));
                         m_contactIndicator->runAction(slideTo);
                     }
                     break;
@@ -578,15 +667,33 @@ protected:
         limpiarChat(true);
 
         auto am = GJAccountManager::sharedState();
-        m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
-        if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
+        if (am && am->m_accountID != 0) {
+            m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
+        }
 
+        if (m_contactsNetwork) {
+            m_contactsNetwork->cargarContactos();
+        }
 
-        this->setTitle(("Chat: " + m_activeChatName).c_str(), "bigFont.fnt", 0.6f);
+        if (m_chatSubtitle) {
+            m_chatSubtitle->setString(("Chat: " + m_activeChatName).c_str());
+        }
+        if (m_addMemberBtn) {
+            auto am = GJAccountManager::sharedState();
+            std::string myId = std::to_string(am->m_accountID);
+            bool isOwner = (m_activeContact.isCommunity && m_activeContact.ownerId == myId);
+            m_addMemberBtn->setVisible(isOwner);
+            m_membersBtn->setVisible(isOwner);
+            m_editCommunityBtn->setVisible(isOwner);
+            m_deleteCommunityBtn->setVisible(isOwner);
+        }
     }
 
     void limpiarChat(bool resetCounter) {
-        if (resetCounter) m_lastMessageCount = 0;
+        if (resetCounter) {
+            m_lastMessageCount = 0;
+            m_lastMessageText = "";
+        }
         m_messages.clear();
         m_scrollLayer->m_contentLayer->removeAllChildren();
         m_scrollLayer->m_contentLayer->setContentSize({ m_chatWidth, m_scrollHeight });
@@ -594,33 +701,39 @@ protected:
     }
 
     void onOpenAddContact(CCObject* sender) {
-        auto popup = AddContactPopup::create([this]() { m_contactsNetwork->cargarContactos(); });
+        auto popup = AddContactPopup::create([this]() {
+            m_contactsNetwork->cargarContactos();
+            });
         popup->show();
     }
 
     void onOpenCommunity(CCObject* sender) {
         auto popup = CommunityPopup::create([this]() {
-            if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
+            if (m_contactsNetwork) {
+                m_contactsNetwork->cargarContactos();
+            }
             });
-        if (popup) popup->show();
+        if (popup) {
+            popup->show();
+        }
     }
 
-    void addMessage(const std::string& rawText, bool isMe, bool animate = false) {
+    void addMessage(const ChatMessage& chatMsg, bool isMe, bool animate = false) {
+        const std::string& rawText = chatMsg.texto;
         auto msgNode = CCNode::create();
         auto gm = GameManager::sharedState();
-
         float margenTextoTotal = 60.0f;
         float anchoMaxTexto = m_chatWidth - margenTextoTotal - 10.0f;
-
         CCNode* contentNode = nullptr;
         float msgHeightActual = 45.0f;
-
         auto stickerSpr = StickerManager::createSticker(rawText);
 
         if (stickerSpr) {
             contentNode = stickerSpr;
             msgHeightActual = stickerSpr->getScaledContentSize().height + 20.0f;
-            if (msgHeightActual < 45.0f) msgHeightActual = 45.0f;
+            if (msgHeightActual < 45.0f) {
+                msgHeightActual = 45.0f;
+            }
 
             if (isMe) {
                 contentNode->setAnchorPoint({ 1.0f, 0.5f });
@@ -635,24 +748,29 @@ protected:
             std::string processedText = applySmartWrapping(rawText, 28);
             auto label = CCLabelBMFont::create(processedText.c_str(), "chatFont.fnt", anchoMaxTexto, kCCTextAlignmentLeft);
             label->setScale(0.55f);
-
             float alturaRealTexto = label->getContentSize().height * 0.55f;
-
 
             auto measureLabel = CCLabelBMFont::create(processedText.c_str(), "chatFont.fnt");
             float anchoRealTexto = measureLabel->getContentSize().width * 0.55f;
-            if (anchoRealTexto > anchoMaxTexto) anchoRealTexto = anchoMaxTexto;
+            if (anchoRealTexto > anchoMaxTexto) {
+                anchoRealTexto = anchoMaxTexto;
+            }
 
             msgHeightActual = alturaRealTexto + 20.0f;
-            if (msgHeightActual < 45.0f) msgHeightActual = 45.0f;
-
+            if (msgHeightActual < 45.0f) {
+                msgHeightActual = 45.0f;
+            }
 
             float bubblePadH = 10.0f;
             float bubblePadV = 8.0f;
             float bubbleW = anchoRealTexto + bubblePadH * 2;
             float bubbleH = alturaRealTexto + bubblePadV * 2;
-            if (bubbleW < 30.0f) bubbleW = 30.0f;
-            if (bubbleH < 26.0f) bubbleH = 26.0f;
+            if (bubbleW < 30.0f) {
+                bubbleW = 30.0f;
+            }
+            if (bubbleH < 26.0f) {
+                bubbleH = 26.0f;
+            }
 
             auto bubble = CCScale9Sprite::create("square02b_001.png", { 0.0f, 0.0f, 80.0f, 80.0f });
             bubble->setContentSize({ bubbleW, bubbleH });
@@ -661,20 +779,22 @@ protected:
             bubble->setInsetTop(10);
             bubble->setInsetBottom(10);
 
-
             auto bubbleContainer = CCNode::create();
             bubbleContainer->setContentSize({ bubbleW, bubbleH });
-
             bubble->setColor({ 0, 0, 0 });
             bubble->setOpacity(120);
-            if (isMe) label->setColor({ 100, 255, 100 });
-            else label->setColor({ 255, 255, 255 });
+
+            if (isMe) {
+                label->setColor({ 100, 255, 100 });
+            }
+            else {
+                label->setColor({ 255, 255, 255 });
+            }
+
             label->setAnchorPoint({ 0.0f, 0.5f });
             label->setPosition({ bubblePadH, bubbleH / 2 });
-
             bubbleContainer->addChild(bubble);
             bubbleContainer->addChild(label, 1);
-
             bubble->setAnchorPoint({ 0.0f, 0.0f });
             bubble->setPosition({ 0.0f, 0.0f });
 
@@ -694,7 +814,9 @@ protected:
             auto player = SimplePlayer::create(gm->getPlayerFrame());
             player->setColor(gm->colorForIdx(gm->getPlayerColor()));
             player->setSecondColor(gm->colorForIdx(gm->getPlayerColor2()));
-            if (gm->getPlayerGlow()) player->setGlowOutline(gm->colorForIdx(gm->getPlayerGlowColor()));
+            if (gm->getPlayerGlow()) {
+                player->setGlowOutline(gm->colorForIdx(gm->getPlayerGlowColor()));
+            }
             player->setScale(0.65f);
             player->setPosition({ m_chatWidth - 20.0f, msgHeightActual / 2 });
             msgNode->addChild(player);
@@ -706,11 +828,32 @@ protected:
                 botIcon->setPosition({ 20.0f, msgHeightActual / 2 });
                 msgNode->addChild(botIcon);
             }
+            else if (m_activeContact.isCommunity && !chatMsg.senderName.empty()) {
+                // En comunidades: mostrar cubo y nombre del remitente individual
+                auto player = SimplePlayer::create(chatMsg.senderIcon);
+                player->setColor(gm->colorForIdx(chatMsg.senderCol1));
+                player->setSecondColor(gm->colorForIdx(chatMsg.senderCol2));
+                if (chatMsg.senderGlow) {
+                    player->setGlowOutline(gm->colorForIdx(chatMsg.senderGlow));
+                }
+                player->setScale(0.65f);
+                player->setPosition({ 20.0f, msgHeightActual / 2 });
+                msgNode->addChild(player);
+
+                auto nameLabel = CCLabelBMFont::create(chatMsg.senderName.c_str(), "chatFont.fnt");
+                nameLabel->setScale(0.35f);
+                nameLabel->setColor({ 200, 200, 200 });
+                nameLabel->setAnchorPoint({ 0.0f, 0.0f });
+                nameLabel->setPosition({ 45.0f, msgHeightActual - 12.0f });
+                msgNode->addChild(nameLabel);
+            }
             else {
                 auto player = SimplePlayer::create(m_activeContact.icon);
                 player->setColor(gm->colorForIdx(m_activeContact.col1));
                 player->setSecondColor(gm->colorForIdx(m_activeContact.col2));
-                if (m_activeContact.glow) player->setGlowOutline(gm->colorForIdx(m_activeContact.glow));
+                if (m_activeContact.glow) {
+                    player->setGlowOutline(gm->colorForIdx(m_activeContact.glow));
+                }
                 player->setScale(0.65f);
                 player->setPosition({ 20.0f, msgHeightActual / 2 });
                 msgNode->addChild(player);
@@ -726,15 +869,18 @@ protected:
 
         msgNode->addChild(contentNode);
         msgNode->setContentSize({ m_chatWidth, msgHeightActual });
-
         m_messages.push_back({ msgNode, msgHeightActual });
         m_scrollLayer->m_contentLayer->addChild(msgNode);
 
         float totalHeightMessages = 0.0f;
-        for (const auto& pair : m_messages) totalHeightMessages += pair.second;
+        for (const auto& pair : m_messages) {
+            totalHeightMessages += pair.second;
+        }
 
         float totalHeight = totalHeightMessages + 15.0f;
-        if (totalHeight < m_scrollHeight) totalHeight = m_scrollHeight;
+        if (totalHeight < m_scrollHeight) {
+            totalHeight = m_scrollHeight;
+        }
 
         m_scrollLayer->m_contentLayer->setContentSize({ m_chatWidth, totalHeight });
         float currentY = totalHeight;
@@ -745,16 +891,13 @@ protected:
         m_scrollLayer->m_contentLayer->stopAllActions();
         m_scrollLayer->m_contentLayer->setPositionY(0.0f);
 
-
         if (animate) {
             float slideOffset = 40.0f;
             float originalY = msgNode->getPositionY();
             msgNode->setPositionY(originalY - slideOffset);
             msgNode->setScale(0.85f);
-
             auto slideUp = CCEaseBackOut::create(CCMoveTo::create(0.3f, ccp(0.0f, originalY)));
             auto scaleUp = CCEaseExponentialOut::create(CCScaleTo::create(0.25f, 1.0f));
-
             msgNode->runAction(slideUp);
             msgNode->runAction(scaleUp);
         }
@@ -774,15 +917,19 @@ protected:
     }
 
     static void cargarPrioridad() {
-        if (!s_contactPriority.empty()) return;
+        if (!s_contactPriority.empty()) {
+            return;
+        }
         auto path = Mod::get()->getSaveDir() / "contact_priority.json";
         std::ifstream file(path);
-        if (!file.is_open()) return;
-
+        if (!file.is_open()) {
+            return;
+        }
         std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
-        if (content.empty()) return;
-
+        if (content.empty()) {
+            return;
+        }
         auto result = matjson::parse(content);
         if (result.isOk() && result.unwrap().isArray()) {
             s_contactPriority.clear();
@@ -795,11 +942,11 @@ protected:
     }
 
     void aplicarOrdenPrioridad() {
-        if (s_contactPriority.empty()) return;
-
+        if (s_contactPriority.empty()) {
+            return;
+        }
         std::vector<ContactInfo> ordered;
         std::vector<ContactInfo> rest = m_contactList;
-
         for (const auto& prioId : s_contactPriority) {
             for (auto it = rest.begin(); it != rest.end(); ++it) {
                 if (it->accountId == prioId) {
@@ -809,23 +956,24 @@ protected:
                 }
             }
         }
-
-        for (const auto& c : rest) ordered.push_back(c);
+        for (const auto& c : rest) {
+            ordered.push_back(c);
+        }
         m_contactList = ordered;
     }
 
     void moverContactoAlInicio(const std::string& accountId) {
-
         s_contactPriority.erase(
             std::remove(s_contactPriority.begin(), s_contactPriority.end(), accountId),
             s_contactPriority.end()
         );
         s_contactPriority.insert(s_contactPriority.begin(), accountId);
         guardarPrioridad();
-
         for (size_t i = 0; i < m_contactList.size(); i++) {
             if (m_contactList[i].accountId == accountId) {
-                if (i == 0) return;
+                if (i == 0) {
+                    return;
+                }
                 ContactInfo contact = m_contactList[i];
                 m_contactList.erase(m_contactList.begin() + i);
                 m_contactList.insert(m_contactList.begin(), contact);
@@ -837,48 +985,56 @@ protected:
 
     void onSend(CCObject* sender) {
         std::string text = m_input->getString();
-        if (text.empty() || m_activeChatId.empty()) return;
-
-        m_input->setString("");
-
-        if (m_isTyping) {
-            m_isTyping = false;
-            enviarEstadoEscribiendo(false);
-            this->unschedule(schedule_selector(ChatPopup::onStopTyping));
+        if (text.empty() || m_activeChatId.empty()) {
+            return;
         }
-
         auto am = GJAccountManager::sharedState();
+        if (!am || am->m_accountID == 0) {
+            return;
+        }
+        m_input->setString("");
         m_animateLastSent = true;
         m_network->enviarMensaje(std::to_string(am->m_accountID), m_activeChatId, text);
         m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
-
-
         moverContactoAlInicio(m_activeChatId);
     }
 
-    virtual void textInputReturn(CCTextInputNode* textInput) override { this->onSend(nullptr); }
+    virtual void textInputReturn(CCTextInputNode* textInput) override {
+        this->onSend(nullptr);
+    }
+
+
 
     void onClose(CCObject* sender) override {
-        if (m_isTyping) enviarEstadoEscribiendo(false);
-
         if (!m_closedByBubble && ChatBubble::s_instance) {
             ChatBubble::s_instance->hide();
         }
 
         this->unschedule(schedule_selector(ChatPopup::onPollServer));
-        this->unschedule(schedule_selector(ChatPopup::onStopTyping));
+        this->unschedule(schedule_selector(ChatPopup::onPollContacts));
+
+        if (m_network && !m_activeChatId.empty()) {
+            auto am = GJAccountManager::sharedState();
+            if (am && am->m_accountID != 0) {
+                m_network->limpiarHistorial(std::to_string(am->m_accountID), m_activeChatId);
+            }
+        }
 
         if (m_network) {
             m_network->setLogCallback(nullptr);
             m_network->setOnMessagesLoaded(nullptr);
-            m_network->setOnTypingStatus(nullptr);
-            m_network->release(); m_network = nullptr;
+            m_network->release();
+            m_network = nullptr;
         }
         if (m_contactsNetwork) {
             m_contactsNetwork->setOnContactsLoaded(nullptr);
-            m_contactsNetwork->release(); m_contactsNetwork = nullptr;
+            m_contactsNetwork->release();
+            m_contactsNetwork = nullptr;
         }
-        // Desregistrar el mouse delegate
+        if (m_communityNet) {
+            m_communityNet->release();
+            m_communityNet = nullptr;
+        }
         CCDirector::sharedDirector()->getMouseDispatcher()->removeDelegate(static_cast<CCMouseDelegate*>(this));
         Popup::onClose(sender);
     }
@@ -887,8 +1043,10 @@ public:
     static ChatPopup* create(ContactInfo* preOpenContact = nullptr) {
         auto ret = new ChatPopup();
         if (ret && ret->init(preOpenContact)) {
-            ret->autorelease(); return ret;
+            ret->autorelease();
+            return ret;
         }
-        CC_SAFE_DELETE(ret); return nullptr;
+        CC_SAFE_DELETE(ret);
+        return nullptr;
     }
 };

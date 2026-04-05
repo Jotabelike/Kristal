@@ -7,19 +7,70 @@
 
 using namespace geode::prelude;
 
+class ScrollAwareMenu : public CCMenu {
+protected:
+    CCPoint m_touchStart;
+    bool m_isSwiping = false;
+
+public:
+    static ScrollAwareMenu* create() {
+        auto ret = new ScrollAwareMenu();
+        if (ret && ret->init()) {
+            ret->autorelease();
+            return ret;
+        }
+        CC_SAFE_DELETE(ret);
+        return nullptr;
+    }
+
+    virtual void registerWithTouchDispatcher() override {
+        // El 'false' final es la magia: evita que el menú se trague el toque,
+        // permitiendo que el ScrollLayer también lo reciba y pueda moverse.
+        CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, this->getTouchPriority(), false);
+    }
+
+    virtual bool ccTouchBegan(CCTouch* touch, CCEvent* event) override {
+        m_touchStart = touch->getLocation();
+        m_isSwiping = false;
+        return CCMenu::ccTouchBegan(touch, event);
+    }
+
+    virtual void ccTouchMoved(CCTouch* touch, CCEvent* event) override {
+        // Si el toque se mueve más de 10 píxeles, asumimos que es un scroll
+        if (ccpDistance(touch->getLocation(), m_touchStart) > 10.0f) {
+            m_isSwiping = true;
+            if (m_pSelectedItem) {
+                m_pSelectedItem->unselected(); // Quita el efecto visual de presionado
+                m_pSelectedItem = nullptr;
+                m_eState = kCCMenuStateWaiting;
+            }
+        }
+        CCMenu::ccTouchMoved(touch, event);
+    }
+
+    virtual void ccTouchEnded(CCTouch* touch, CCEvent* event) override {
+        // Si estábamos haciendo scroll, ignoramos el clic por completo
+        if (m_isSwiping) {
+            if (m_pSelectedItem) {
+                m_pSelectedItem->unselected();
+            }
+            m_eState = kCCMenuStateWaiting;
+            return;
+        }
+        CCMenu::ccTouchEnded(touch, event);
+    }
+};
+
 class StickersPopup : public geode::Popup {
 protected:
     std::function<void(std::string)> m_callback;
     ScrollLayer* m_scroll = nullptr;
     CCScale9Sprite* m_scrollBG = nullptr;
     Scrollbar* m_scrollbar = nullptr;
-    CCMenu* m_tabMenu = nullptr;
 
     float m_scrollW = 250.0f;
     float m_scrollH = 125.0f;
     float m_scrollY = 0.0f;
-
-    int m_currentTab = 0;
 
     bool init(std::function<void(std::string)> callback) {
         if (!Popup::init(300.f, 220.f, "GJ_ChatBg_003.png"_spr)) return false;
@@ -33,7 +84,6 @@ protected:
 
         m_scrollY = centerY - 12.0f;
 
-        
         for (int i = 0; i < 2; i++) {
             auto sideArt = CCSprite::createWithSpriteFrameName("dailyLevelCorner_001.png");
 
@@ -59,27 +109,6 @@ protected:
             m_mainLayer->addChild(sideArt);
         }
 
-    
-        m_tabMenu = CCMenu::create();
-        m_tabMenu->setPosition(0, 0);
-        m_mainLayer->addChild(m_tabMenu, 2);
-
-        float tabY = bgSize.height - 38.0f;
-        float tabSpacing = 75.0f;
-
-        auto stickerTabSpr = ButtonSprite::create("Stickers", "bigFont.fnt", "GJ_button_01.png", 0.6f);
-        stickerTabSpr->setScale(0.6f);
-        auto stickerTabBtn = CCMenuItemSpriteExtra::create(stickerTabSpr, this, menu_selector(StickersPopup::onTabStickers));
-        stickerTabBtn->setPosition({ centerX - tabSpacing / 2.0f, tabY });
-        m_tabMenu->addChild(stickerTabBtn);
-
-        auto gifTabSpr = ButtonSprite::create("Gifs", "bigFont.fnt", "GJ_button_01.png", 0.6f);
-        gifTabSpr->setScale(0.6f);
-        auto gifTabBtn = CCMenuItemSpriteExtra::create(gifTabSpr, this, menu_selector(StickersPopup::onTabGifs));
-        gifTabBtn->setPosition({ centerX + tabSpacing / 2.0f, tabY });
-        m_tabMenu->addChild(gifTabBtn);
-
-        
         m_scrollBG = CCScale9Sprite::create("square02b_001.png");
         m_scrollBG->setColor({ 0, 0, 0 });
         m_scrollBG->setOpacity(80);
@@ -87,14 +116,12 @@ protected:
         m_scrollBG->setPosition({ centerX, m_scrollY });
         m_mainLayer->addChild(m_scrollBG);
 
-        loadTab(0);
+        loadStickers();
 
         return true;
     }
 
-    void loadTab(int tab) {
-        m_currentTab = tab;
-
+    void loadStickers() {
         if (m_scroll) {
             m_scroll->removeFromParent();
             m_scroll = nullptr;
@@ -107,14 +134,7 @@ protected:
         auto bgSize = m_mainLayer->getContentSize();
         float centerX = bgSize.width / 2.0f;
 
-        std::vector<std::string> commands;
-
-        if (tab == 0) {
-            commands = StickerManager::getStickerCommands();
-        }
-        else {
-            commands = StickerManager::getGifCommands();
-        }
+        std::vector<std::string> commands = StickerManager::getStickerCommands();
 
         m_scroll = ScrollLayer::create({ m_scrollW, m_scrollH });
         m_scroll->setPosition({
@@ -137,9 +157,8 @@ protected:
         if (totalHeight < m_scrollH) totalHeight = m_scrollH;
 
         m_scroll->m_contentLayer->setContentSize({ m_scrollW, totalHeight });
+        auto menu = ScrollAwareMenu::create();
 
-        auto menu = CCMenu::create();
-         
         menu->setContentSize({ m_scrollW, totalHeight });
         menu->setPosition({ 0, 0 });
         m_scroll->m_contentLayer->addChild(menu);
@@ -151,7 +170,6 @@ protected:
             float x = padX + (col * cellSize) + cellSize / 2.0f;
             float y = totalHeight - (row * cellSize) - cellSize / 2.0f;
 
-         
             auto container = CCSprite::create();
             container->setContentSize({ cellSize, cellSize });
 
@@ -178,7 +196,6 @@ protected:
             menu->addChild(btn);
         }
 
-     
         m_scroll->m_contentLayer->setPositionY(m_scrollH - totalHeight);
 
         if (this->isRunning()) {
@@ -186,24 +203,13 @@ protected:
         }
     }
 
-    void onTabStickers(CCObject* sender) {
-        if (m_currentTab == 0) return;
-        loadTab(0);
-    }
-
-    void onTabGifs(CCObject* sender) {
-        if (m_currentTab == 1) return;
-        loadTab(1);
-    }
-
     void onInfo(CCObject* sender) {
         std::string Info =
             "Los <cg>Stickers</c> son imagenes para usar en el chat.\n"
-            "Los <cy>Gifs</c> son imagenes animadas.\n"
-            "<cr>Solo se envia el sticker/gif</c>\n"
+            "<cr>Solo se envia el sticker</c>\n"
             "No se puede mezclar con texto.";
 
-        FLAlertLayer::create(nullptr, "Stickers & Gifs", Info.c_str(), "Okei", nullptr, 360)->show();
+        FLAlertLayer::create(nullptr, "Stickers", Info.c_str(), "Okei", nullptr, 360)->show();
     }
 
     void onSelectSticker(CCObject* sender) {

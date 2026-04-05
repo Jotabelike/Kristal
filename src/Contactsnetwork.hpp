@@ -15,13 +15,15 @@ struct ContactInfo {
     int col1 = 0;
     int col2 = 3;
     int glow = 0;
-    int unreadCount = 0;  
+    int unreadCount = 0;
+    bool isCommunity = false;
+    std::string ownerId = "";
 };
 
 class ContactsNetwork : public CCObject {
 protected:
-    std::string m_baseUrl = "https://kristal-chat-api.onrender.com";
-    std::string m_lastContactsJson = ""; 
+    std::string m_baseUrl = "https://kristal-backend-9aow.onrender.com";
+    std::string m_lastContactsJson = "";
 
     std::function<void(const std::string&)> m_logCallback;
     std::function<void(const std::vector<ContactInfo>&)> m_onContactsLoaded;
@@ -84,9 +86,14 @@ protected:
             std::string glowStr = extractJsonValue(obj, "glow");
             if (!glowStr.empty()) info.glow = std::stoi(glowStr);
 
-           
+
             std::string unreadStr = extractJsonValue(obj, "unreadCount");
             if (!unreadStr.empty()) info.unreadCount = std::stoi(unreadStr);
+
+            std::string communityStr = extractJsonValue(obj, "isCommunity");
+            info.isCommunity = (communityStr == "true" || communityStr == "1");
+
+            info.ownerId = extractJsonValue(obj, "ownerId");
 
             if (!info.accountId.empty()) result.push_back(info);
             pos = end + 1;
@@ -107,7 +114,7 @@ public:
     void setOnRequestAccepted(std::function<void()> cb) { m_onRequestAccepted = cb; }
     void setOnSolicitudSent(std::function<void(bool, const std::string&)> cb) { m_onSolicitudSent = cb; }
 
-  
+
     void enviarSolicitud(const std::string& toAccountId) {
         auto am = GJAccountManager::sharedState();
         int myId = am->m_accountID;
@@ -213,7 +220,7 @@ public:
         std::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
 
- 
+
         if (body == m_lastContactsJson) {
             return;
         }

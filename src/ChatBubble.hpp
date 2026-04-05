@@ -9,6 +9,7 @@ class ChatBubble : public CCNode, public CCTargetedTouchDelegate {
 protected:
     SimplePlayer* m_playerIcon = nullptr;
     CCLabelBMFont* m_badgeLabel = nullptr;
+    CCScale9Sprite* m_bg = nullptr;
 
     ContactInfo m_contact;
     std::function<void(ContactInfo)> m_openChatCallback;
@@ -24,13 +25,22 @@ protected:
         this->setContentSize({ 45.f, 45.f });
         this->setAnchorPoint({ 0.5f, 0.5f });
 
+        this->ignoreAnchorPointForPosition(false);
+
         auto winSize = CCDirector::sharedDirector()->getWinSize();
-        this->setPosition({ winSize.width - 40.f, winSize.height - 40.f });
+        this->setPosition({ winSize.width - 30.f, winSize.height / 2 });
+
+        m_bg = CCScale9Sprite::create("square02b_001.png", { 0, 0, 80, 80 });
+        m_bg->setContentSize({ 55.f, 55.f });
+        m_bg->setPosition({ 22.5f, 22.5f });
+        m_bg->setColor({ 0, 0, 0 });
+        m_bg->setOpacity(0);
+        this->addChild(m_bg, -1);
 
         m_badgeLabel = CCLabelBMFont::create("1", "bigFont.fnt");
         m_badgeLabel->setScale(0.40f);
         m_badgeLabel->setColor({ 255, 60, 60 });
-        m_badgeLabel->setPosition({ 38.0f, 38.0f });
+        m_badgeLabel->setPosition({ 45.0f, 45.0f });
         this->addChild(m_badgeLabel, 10);
         m_badgeLabel->setVisible(false);
 
@@ -61,7 +71,10 @@ protected:
 
     void onPoll(float dt) {
         if (this->isVisible() && !m_contact.accountId.empty()) {
-            m_contactsNetwork->cargarContactos();
+            auto am = GJAccountManager::sharedState();
+            if (am && am->m_accountID != 0) {
+                m_contactsNetwork->cargarContactos();
+            }
         }
     }
 
@@ -71,7 +84,7 @@ protected:
 
     void onEnter() override {
         CCNode::onEnter();
-        CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, -500, true);
+        CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, -5000, true);
     }
 
     void onExit() override {
@@ -120,10 +133,10 @@ protected:
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
         auto pos = this->getPosition();
-        if (pos.x < 25.f) pos.x = 25.f;
-        if (pos.x > winSize.width - 25.f) pos.x = winSize.width - 25.f;
-        if (pos.y < 25.f) pos.y = 25.f;
-        if (pos.y > winSize.height - 25.f) pos.y = winSize.height - 25.f;
+        if (pos.x < 30.f) pos.x = 30.f;
+        if (pos.x > winSize.width - 30.f) pos.x = winSize.width - 30.f;
+        if (pos.y < 30.f) pos.y = 30.f;
+        if (pos.y > winSize.height - 30.f) pos.y = winSize.height - 30.f;
 
         if (pos.x != this->getPositionX() || pos.y != this->getPositionY()) {
             this->runAction(CCEaseElasticOut::create(CCMoveTo::create(0.3f, pos), 0.6f));
@@ -147,7 +160,7 @@ public:
             s_instance = new ChatBubble();
             if (s_instance && s_instance->init()) {
                 s_instance->setID("kristal-chat-bubble");
-                director->getNotificationNode()->addChild(s_instance, 9999);
+                director->getNotificationNode()->addChild(s_instance, 99999);
             }
             else {
                 CC_SAFE_DELETE(s_instance);

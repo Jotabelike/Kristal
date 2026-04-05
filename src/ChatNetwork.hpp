@@ -11,14 +11,19 @@ using namespace cocos2d::extension;
 struct ChatMessage {
     std::string senderId;
     std::string texto;
+    std::string senderName;
+    int senderIcon = 0;
+    int senderCol1 = 0;
+    int senderCol2 = 3;
+    int senderGlow = 0;
 };
 
 class ChatNetwork : public CCObject {
 protected:
-    std::string m_baseUrl = "https://kristal-chat-api.onrender.com";
+    std::string m_baseUrl = "https://kristal-backend-9aow.onrender.com";
     std::function<void(const std::string&)> m_logCallback;
     std::function<void(const std::vector<ChatMessage>&)> m_onMessagesLoaded;
-    std::function<void(bool)> m_onTypingStatus; 
+    std::function<void(bool)> m_onTypingStatus;
 
     void log(const std::string& msg) { if (m_logCallback) m_logCallback(msg); }
 
@@ -65,7 +70,23 @@ public:
     void setOnMessagesLoaded(std::function<void(const std::vector<ChatMessage>&)> callback) { m_onMessagesLoaded = callback; }
     void setOnTypingStatus(std::function<void(bool)> callback) { m_onTypingStatus = callback; }
 
-  
+    void limpiarHistorial(const std::string& fromId, const std::string& toId) {
+        if (fromId.empty() || toId.empty()) return;
+
+        std::string postData = "fromId=" + fromId + "&toId=" + urlEncode(toId);
+
+        auto request = new CCHttpRequest();
+        request->setUrl((m_baseUrl + "/limpiar_historial").c_str());
+        request->setRequestType(CCHttpRequest::kHttpPost);
+
+     
+        request->setRequestData(postData.c_str(), postData.length());
+
+        // Como no nos importa la respuesta, lo enviamos y nos olvidamos
+        CCHttpClient::getInstance()->send(request);
+        request->release();
+    }
+
     void registrarJugador() {
         auto am = GJAccountManager::sharedState();
         auto gm = GameManager::sharedState();
@@ -75,7 +96,7 @@ public:
         if (accountId == 0) { log("Error: No hay cuenta de GD iniciada."); return; }
         if (username.empty()) username = "UsuarioDesconocido";
 
-      
+
         int icon = gm->getPlayerFrame();
         int col1 = gm->getPlayerColor();
         int col2 = gm->getPlayerColor2();
@@ -101,9 +122,9 @@ public:
         request->release();
     }
 
-    void onRegistroResponse(CCHttpClient* sender, CCHttpResponse* response) {  }
+    void onRegistroResponse(CCHttpClient* sender, CCHttpResponse* response) {}
 
-     
+
     void enviarMensaje(const std::string& fromId, const std::string& toId, const std::string& texto) {
         if (fromId.empty() || toId.empty() || texto.empty()) return;
         std::string postData = "fromId=" + fromId + "&toId=" + toId + "&texto=" + urlEncode(texto);
@@ -149,6 +170,16 @@ public:
                 ChatMessage msg;
                 msg.senderId = extractJsonValue(obj, "senderId");
                 msg.texto = extractJsonValue(obj, "texto");
+                msg.senderName = extractJsonValue(obj, "senderName");
+
+                std::string iconStr = extractJsonValue(obj, "senderIcon");
+                if (!iconStr.empty()) msg.senderIcon = std::stoi(iconStr);
+                std::string col1Str = extractJsonValue(obj, "senderCol1");
+                if (!col1Str.empty()) msg.senderCol1 = std::stoi(col1Str);
+                std::string col2Str = extractJsonValue(obj, "senderCol2");
+                if (!col2Str.empty()) msg.senderCol2 = std::stoi(col2Str);
+                std::string glowStr = extractJsonValue(obj, "senderGlow");
+                if (!glowStr.empty()) msg.senderGlow = std::stoi(glowStr);
 
                 if (!msg.texto.empty()) mensajes.push_back(msg);
                 pos = end + 1;
@@ -168,7 +199,7 @@ public:
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
 
-        
+
 
         request->setTag("escribiendo");
         CCHttpClient::getInstance()->send(request);

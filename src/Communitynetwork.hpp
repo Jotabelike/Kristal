@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <Geode/Geode.hpp>
 #include <cocos-ext.h>
 #include <functional>
@@ -21,15 +21,30 @@ struct CommunityInfo {
     int memberCount = 0;
 };
 
+struct MemberInfo {
+    std::string accountId;
+    std::string username;
+    int icon = 0;
+    int col1 = 0;
+    int col2 = 3;
+    int glow = 0;
+    std::string role;
+};
+
 class CommunityNetwork : public CCObject {
 protected:
-    std::string m_baseUrl = "https://kristal-chat-api.onrender.com";
+    std::string m_baseUrl = "https://kristal-backend-9aow.onrender.com";
 
     std::function<void(const CommunityInfo&)> m_onCommunityCreated = nullptr;
     std::function<void(const std::vector<CommunityInfo>&)> m_onCommunitiesLoaded = nullptr;
     std::function<void(const CommunityInfo&)> m_onCommunityFound = nullptr;
     std::function<void(const std::string&)> m_onError = nullptr;
     std::function<void(const std::string&)> m_logCallback = nullptr;
+    std::function<void(const std::string&)> m_onMemberAdded = nullptr;
+    std::function<void(const std::vector<MemberInfo>&)> m_onMembersLoaded = nullptr;
+    std::function<void(const std::string&)> m_onMemberRemoved = nullptr;
+    std::function<void()> m_onCommunityDeleted = nullptr;
+    std::function<void()> m_onCommunityEdited = nullptr;
 
     void log(const std::string& msg) {
         if (m_logCallback) m_logCallback(msg);
@@ -104,6 +119,34 @@ protected:
         return result;
     }
 
+    std::vector<MemberInfo> parseMemberArray(const std::string& json) {
+        std::vector<MemberInfo> result;
+        size_t pos = 0;
+        while ((pos = json.find('{', pos)) != std::string::npos) {
+            size_t end = json.find('}', pos);
+            if (end == std::string::npos) break;
+            std::string obj = json.substr(pos, end - pos + 1);
+
+            MemberInfo m;
+            m.accountId = extractJsonValue(obj, "accountId");
+            m.username = extractJsonValue(obj, "username");
+            m.role = extractJsonValue(obj, "role");
+
+            std::string iconStr = extractJsonValue(obj, "icon");
+            if (!iconStr.empty()) m.icon = std::stoi(iconStr);
+            std::string col1Str = extractJsonValue(obj, "col1");
+            if (!col1Str.empty()) m.col1 = std::stoi(col1Str);
+            std::string col2Str = extractJsonValue(obj, "col2");
+            if (!col2Str.empty()) m.col2 = std::stoi(col2Str);
+            std::string glowStr = extractJsonValue(obj, "glow");
+            if (!glowStr.empty()) m.glow = std::stoi(glowStr);
+
+            if (!m.accountId.empty()) result.push_back(m);
+            pos = end + 1;
+        }
+        return result;
+    }
+
 public:
     static CommunityNetwork* create() {
         auto ret = new CommunityNetwork();
@@ -111,14 +154,18 @@ public:
         return nullptr;
     }
 
-    
+
     void setOnCommunityCreated(std::function<void(const CommunityInfo&)> cb) { m_onCommunityCreated = cb; }
     void setOnCommunitiesLoaded(std::function<void(const std::vector<CommunityInfo>&)> cb) { m_onCommunitiesLoaded = cb; }
     void setOnCommunityFound(std::function<void(const CommunityInfo&)> cb) { m_onCommunityFound = cb; }
     void setOnError(std::function<void(const std::string&)> cb) { m_onError = cb; }
     void setLogCallback(std::function<void(const std::string&)> cb) { m_logCallback = cb; }
+    void setOnMemberAdded(std::function<void(const std::string&)> cb) { m_onMemberAdded = cb; }
+    void setOnMembersLoaded(std::function<void(const std::vector<MemberInfo>&)> cb) { m_onMembersLoaded = cb; }
+    void setOnMemberRemoved(std::function<void(const std::string&)> cb) { m_onMemberRemoved = cb; }
+    void setOnCommunityDeleted(std::function<void()> cb) { m_onCommunityDeleted = cb; }
+    void setOnCommunityEdited(std::function<void()> cb) { m_onCommunityEdited = cb; }
 
-    
     void crearComunidad(const std::string& ownerId, const std::string& name, const std::string& description,
         int icon, int col1, int col2, int glow, bool isPublic) {
         log("[Community] Creando: " + name);
@@ -163,7 +210,7 @@ public:
 
         if (!response->isSucceed()) {
             std::string errorMsg = "HTTP " + std::to_string(statusCode);
-           
+
             std::string serverError = extractJsonValue(body, "error");
             if (!serverError.empty()) {
                 errorMsg = serverError;
@@ -190,7 +237,7 @@ public:
         }
     }
 
-   
+
     void cargarComunidades(const std::string& userId) {
         log("[Community] Cargando comunidades...");
 
@@ -221,7 +268,7 @@ public:
         if (m_onCommunitiesLoaded) m_onCommunitiesLoaded(list);
     }
 
-     
+
     void buscarComunidad(const std::string& communityId) {
         log("[Community] Buscando: " + communityId);
 
@@ -257,7 +304,7 @@ public:
         }
     }
 
-    
+
     void unirseComunidad(const std::string& userId, const std::string& communityId) {
         log("[Community] Uniendose a: " + communityId);
 
@@ -282,5 +329,189 @@ public:
             return;
         }
         log("[Community] Unido exitosamente");
+    }
+
+    // A�adir miembro a la comunidad (Solo Due�os)
+    void agregarMiembroComunidad(const std::string& ownerId, const std::string& communityId, const std::string& targetAccountId) {
+        log("[Community] Agregando miembro " + targetAccountId + " a comunidad: " + communityId);
+
+        std::string postData = "ownerId=" + ownerId
+            + "&communityId=" + urlEncode(communityId)
+            + "&targetAccountId=" + urlEncode(targetAccountId);
+
+        auto request = new CCHttpRequest();
+        request->setUrl((m_baseUrl + "/comunidad/agregar").c_str());
+        request->setRequestType(CCHttpRequest::kHttpPost);
+        std::vector<std::string> headers;
+        headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        request->setHeaders(headers);
+        request->setRequestData(postData.c_str(), postData.length());
+        request->setResponseCallback(this, httpresponse_selector(CommunityNetwork::onAgregarMiembroResponse));
+        request->setTag("agregarMiembroComunidad");
+        CCHttpClient::getInstance()->send(request);
+        request->release();
+    }
+
+    void onAgregarMiembroResponse(CCHttpClient* sender, CCHttpResponse* response) {
+        if (!response || !response->isSucceed()) {
+            if (m_onError) m_onError("Error de conexion al agregar miembro");
+            return;
+        }
+
+        std::vector<char>* data = response->getResponseData();
+        std::string body(data->begin(), data->end());
+        std::string success = extractJsonValue(body, "success");
+
+        if (success == "true") {
+            log("[Community] Miembro agregado correctamente");
+            if (m_onMemberAdded) m_onMemberAdded("Miembro agregado exitosamente!");
+        }
+        else {
+            std::string errorMsg = extractJsonValue(body, "error");
+            if (errorMsg.empty()) errorMsg = "Respuesta invalida del servidor";
+            if (m_onError) m_onError(errorMsg);
+        }
+    }
+
+    // --- Listar miembros ---
+    void listarMiembros(const std::string& communityId) {
+        log("[Community] Listando miembros de: " + communityId);
+        std::string postData = "communityId=" + urlEncode(communityId);
+
+        auto request = new CCHttpRequest();
+        request->setUrl((m_baseUrl + "/comunidad/miembros").c_str());
+        request->setRequestType(CCHttpRequest::kHttpPost);
+        std::vector<std::string> headers;
+        headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        request->setHeaders(headers);
+        request->setRequestData(postData.c_str(), postData.length());
+        request->setResponseCallback(this, httpresponse_selector(CommunityNetwork::onMiembrosResponse));
+        request->setTag("listarMiembros");
+        CCHttpClient::getInstance()->send(request);
+        request->release();
+    }
+
+    void onMiembrosResponse(CCHttpClient* sender, CCHttpResponse* response) {
+        if (!response || !response->isSucceed()) {
+            if (m_onMembersLoaded) m_onMembersLoaded({});
+            return;
+        }
+        std::vector<char>* data = response->getResponseData();
+        std::string body(data->begin(), data->end());
+        auto members = parseMemberArray(body);
+        log("[Community] Miembros cargados: " + std::to_string(members.size()));
+        if (m_onMembersLoaded) m_onMembersLoaded(members);
+    }
+
+    // --- Expulsar miembro ---
+    void expulsarMiembro(const std::string& ownerId, const std::string& communityId, const std::string& targetAccountId) {
+        log("[Community] Expulsando " + targetAccountId + " de: " + communityId);
+        std::string postData = "ownerId=" + ownerId
+            + "&communityId=" + urlEncode(communityId)
+            + "&targetAccountId=" + urlEncode(targetAccountId);
+
+        auto request = new CCHttpRequest();
+        request->setUrl((m_baseUrl + "/comunidad/expulsar").c_str());
+        request->setRequestType(CCHttpRequest::kHttpPost);
+        std::vector<std::string> headers;
+        headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        request->setHeaders(headers);
+        request->setRequestData(postData.c_str(), postData.length());
+        request->setResponseCallback(this, httpresponse_selector(CommunityNetwork::onExpulsarResponse));
+        request->setTag("expulsarMiembro");
+        CCHttpClient::getInstance()->send(request);
+        request->release();
+    }
+
+    void onExpulsarResponse(CCHttpClient* sender, CCHttpResponse* response) {
+        if (!response || !response->isSucceed()) {
+            std::string errMsg = "Error de conexion";
+            if (response && response->getResponseData()) {
+                std::string body(response->getResponseData()->begin(), response->getResponseData()->end());
+                std::string serverErr = extractJsonValue(body, "error");
+                if (!serverErr.empty()) errMsg = serverErr;
+            }
+            if (m_onError) m_onError(errMsg);
+            return;
+        }
+        log("[Community] Miembro expulsado");
+        if (m_onMemberRemoved) m_onMemberRemoved("Miembro expulsado exitosamente!");
+    }
+
+    // --- Eliminar comunidad ---
+    void eliminarComunidad(const std::string& ownerId, const std::string& communityId) {
+        log("[Community] Eliminando comunidad: " + communityId);
+        std::string postData = "ownerId=" + ownerId + "&communityId=" + urlEncode(communityId);
+
+        auto request = new CCHttpRequest();
+        request->setUrl((m_baseUrl + "/comunidad/eliminar").c_str());
+        request->setRequestType(CCHttpRequest::kHttpPost);
+        std::vector<std::string> headers;
+        headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        request->setHeaders(headers);
+        request->setRequestData(postData.c_str(), postData.length());
+        request->setResponseCallback(this, httpresponse_selector(CommunityNetwork::onEliminarResponse));
+        request->setTag("eliminarComunidad");
+        CCHttpClient::getInstance()->send(request);
+        request->release();
+    }
+
+    void onEliminarResponse(CCHttpClient* sender, CCHttpResponse* response) {
+        if (!response || !response->isSucceed()) {
+            std::string errMsg = "Error de conexion";
+            if (response && response->getResponseData()) {
+                std::string body(response->getResponseData()->begin(), response->getResponseData()->end());
+                std::string serverErr = extractJsonValue(body, "error");
+                if (!serverErr.empty()) errMsg = serverErr;
+            }
+            if (m_onError) m_onError(errMsg);
+            return;
+        }
+        log("[Community] Comunidad eliminada");
+        if (m_onCommunityDeleted) m_onCommunityDeleted();
+    }
+
+    // --- Editar comunidad ---
+    void editarComunidad(const std::string& ownerId, const std::string& communityId,
+        const std::string& name, const std::string& description,
+        int icon, int col1, int col2, int glow, bool isPublic) {
+        log("[Community] Editando comunidad: " + communityId);
+
+        std::string postData = "ownerId=" + ownerId
+            + "&communityId=" + urlEncode(communityId)
+            + "&name=" + urlEncode(name)
+            + "&description=" + urlEncode(description)
+            + "&icon=" + std::to_string(icon)
+            + "&col1=" + std::to_string(col1)
+            + "&col2=" + std::to_string(col2)
+            + "&glow=" + std::to_string(glow)
+            + "&isPublic=" + (isPublic ? "1" : "0");
+
+        auto request = new CCHttpRequest();
+        request->setUrl((m_baseUrl + "/comunidad/editar").c_str());
+        request->setRequestType(CCHttpRequest::kHttpPost);
+        std::vector<std::string> headers;
+        headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        request->setHeaders(headers);
+        request->setRequestData(postData.c_str(), postData.length());
+        request->setResponseCallback(this, httpresponse_selector(CommunityNetwork::onEditarResponse));
+        request->setTag("editarComunidad");
+        CCHttpClient::getInstance()->send(request);
+        request->release();
+    }
+
+    void onEditarResponse(CCHttpClient* sender, CCHttpResponse* response) {
+        if (!response || !response->isSucceed()) {
+            std::string errMsg = "Error de conexion";
+            if (response && response->getResponseData()) {
+                std::string body(response->getResponseData()->begin(), response->getResponseData()->end());
+                std::string serverErr = extractJsonValue(body, "error");
+                if (!serverErr.empty()) errMsg = serverErr;
+            }
+            if (m_onError) m_onError(errMsg);
+            return;
+        }
+        log("[Community] Comunidad editada");
+        if (m_onCommunityEdited) m_onCommunityEdited();
     }
 };

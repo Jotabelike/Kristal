@@ -7,13 +7,17 @@
 
 using namespace geode::prelude;
 
-class CommunityPopup : public geode::Popup {
+class CommunityEditPopup : public geode::Popup {
 protected:
     TextInput* m_nameInput = nullptr;
     TextInput* m_descInput = nullptr;
     ScrollLayer* m_iconScroll = nullptr;
+    CommunityNetwork* m_net = nullptr;
 
-    CommunityNetwork* m_communityNet = nullptr;
+    std::string m_communityId;
+    std::string m_ownerId;
+    std::string m_origName;
+    std::string m_origDesc;
 
     int m_selectedIcon = 1;
     int m_selectedCol1 = 0;
@@ -22,67 +26,49 @@ protected:
     bool m_isPublic = true;
 
     SimplePlayer* m_previewPlayer = nullptr;
-
     CCLabelBMFont* m_visibilityStatusLabel = nullptr;
-    CCMenuItemToggler* m_visibilityToggle = nullptr;
     CCLabelBMFont* m_statusLabel = nullptr;
+    std::function<void()> m_onEdited = nullptr;
 
-    std::function<void()> m_onCreated = nullptr;
-
-    bool init(std::function<void()> onCreated) {
+    bool init(std::string commId, std::string ownerId, CommunityInfo info, std::function<void()> onEdited) {
         if (!Popup::init(400.f, 280.f, "GJ_square01.png")) return false;
-        m_onCreated = onCreated;
+        m_communityId = commId;
+        m_ownerId = ownerId;
+        m_onEdited = onEdited;
+        m_origName = info.name;
+        m_origDesc = info.description;
+        m_selectedIcon = info.icon;
+        m_selectedCol1 = info.col1;
+        m_selectedCol2 = info.col2;
+        m_selectedGlow = info.glow;
+        m_isPublic = info.isPublic;
 
-        this->setTitle("Crear Comunidad", "bigFont.fnt", 0.6f);
+        this->setTitle("Editar Comunidad", "bigFont.fnt", 0.6f);
 
         auto bgSize = m_mainLayer->getContentSize();
         float centerX = bgSize.width / 2;
-        float centerY = bgSize.height / 2;
 
-       
-        for (int i = 0; i < 4; i++) {
-            auto sideArt = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
-            float hw = m_bgSprite->getContentSize().width / 2;
-            float hh = m_bgSprite->getContentSize().height / 2;
-            float sw = sideArt->getContentSize().width / 2;
-            float sh = sideArt->getContentSize().height / 2;
-            CCPoint pos;
-            switch (i) {
-            case 0: pos = ccp(centerX - hw + sw, centerY - hh + sh); break;
-            case 1: sideArt->setFlipX(true); pos = ccp(centerX + hw - sw, centerY - hh + sh); break;
-            case 2: sideArt->setFlipY(true); pos = ccp(centerX - hw + sw, centerY + hh - sh); break;
-            case 3: sideArt->setFlipX(true); sideArt->setFlipY(true); pos = ccp(centerX + hw - sw, centerY + hh - sh); break;
-            }
-            sideArt->setPosition(pos);
-            m_mainLayer->addChild(sideArt);
-        }
-
-      
-        m_communityNet = CommunityNetwork::create();
-        m_communityNet->retain();
-
-        m_communityNet->setOnCommunityCreated([this](const CommunityInfo& info) {
-            FLAlertLayer::create(nullptr, "Comunidad Creada", ("Tu comunidad <cg>" + info.name + "</c> fue creada!").c_str(), "Genial!", nullptr, 320)->show();
-            if (m_onCreated) m_onCreated();
+        m_net = CommunityNetwork::create();
+        m_net->retain();
+        m_net->setOnCommunityEdited([this]() {
+            FLAlertLayer::create(nullptr, "Exito", "Comunidad editada!", "OK", nullptr, 300)->show();
+            if (m_onEdited) m_onEdited();
+            this->onClose(nullptr);
             });
-        m_communityNet->setOnError([this](const std::string& err) { if (m_statusLabel) { m_statusLabel->setString(err.c_str()); m_statusLabel->setColor({ 255, 80, 80 }); } });
-        m_communityNet->setLogCallback([this](const std::string& msg) { if (m_statusLabel) { m_statusLabel->setString(msg.c_str()); m_statusLabel->setColor({ 255, 255, 100 }); } });
+        m_net->setOnError([this](const std::string& err) {
+            if (m_statusLabel) { m_statusLabel->setString(err.c_str()); m_statusLabel->setColor({ 255, 80, 80 }); }
+            });
 
         auto menu = CCMenu::create();
         menu->setPosition({ 0, 0 });
         m_mainLayer->addChild(menu, 2);
 
         auto gm = GameManager::sharedState();
-        m_selectedCol1 = gm->getPlayerColor();
-        m_selectedCol2 = gm->getPlayerColor2();
-        m_selectedGlow = gm->getPlayerGlow() ? gm->getPlayerGlowColor() : 0;
 
        
         float leftX = 105.0f;
         float rightX = 295.0f;
         float topY = bgSize.height - 50.0f;
-
-       
 
         auto previewBg = CCScale9Sprite::create("square02b_001.png", { 0, 0, 80, 80 });
         previewBg->setContentSize({ 50.0f, 50.0f });
@@ -91,14 +77,12 @@ protected:
         previewBg->setPosition({ leftX, topY - 15.0f });
         m_mainLayer->addChild(previewBg);
 
- 
         m_previewPlayer = SimplePlayer::create(m_selectedIcon);
-        m_previewPlayer->setColor(gm->colorForIdx(gm->getPlayerColor()));
-        m_previewPlayer->setSecondColor(gm->colorForIdx(gm->getPlayerColor2()));
-        if (gm->getPlayerGlow()) {
-            m_previewPlayer->setGlowOutline(gm->colorForIdx(gm->getPlayerGlowColor()));
+        m_previewPlayer->setColor(gm->colorForIdx(m_selectedCol1));
+        m_previewPlayer->setSecondColor(gm->colorForIdx(m_selectedCol2));
+        if (m_selectedGlow) {
+            m_previewPlayer->setGlowOutline(gm->colorForIdx(m_selectedGlow));
         }
-        m_previewPlayer->updateColors(); 
         m_previewPlayer->setPosition({ leftX, topY - 15.0f });
         m_mainLayer->addChild(m_previewPlayer, 1);
 
@@ -107,7 +91,7 @@ protected:
         previewLabel->setPosition({ leftX, topY + 15.0f });
         m_mainLayer->addChild(previewLabel);
 
-        
+       
         float gridW = 140.0f;
         float gridH = 120.0f;
         float gridCenterY = topY - 105.0f;
@@ -129,11 +113,10 @@ protected:
 
         buildIconGrid();
 
-      
+       
         float inputW = 170.0f;
         float fieldY = topY + 5.0f;
 
-        // --- Nombre ---
         auto nameLabel = CCLabelBMFont::create("Nombre", "goldFont.fnt");
         nameLabel->setScale(0.4f);
         nameLabel->setPosition({ rightX, fieldY });
@@ -146,13 +129,14 @@ protected:
         nameBg->setPosition({ rightX, fieldY - 22.0f });
         m_mainLayer->addChild(nameBg);
 
-        m_nameInput = TextInput::create(inputW - 10.0f, "Nombre de la comunidad...", "chatFont.fnt");
+        m_nameInput = TextInput::create(inputW - 10.0f, "Nombre...", "chatFont.fnt");
         m_nameInput->setPosition({ rightX, fieldY - 22.0f });
         m_nameInput->getBGSprite()->setVisible(false);
         m_nameInput->setMaxCharCount(24);
+        m_nameInput->setString(m_origName);
         m_mainLayer->addChild(m_nameInput);
 
-        // --- Descripcion ---
+      
         float descY = fieldY - 60.0f;
 
         auto descLabel = CCLabelBMFont::create("Descripcion", "goldFont.fnt");
@@ -167,13 +151,14 @@ protected:
         descBg->setPosition({ rightX, descY - 30.0f });
         m_mainLayer->addChild(descBg);
 
-        m_descInput = TextInput::create(inputW - 10.0f, "Describe tu comunidad...", "chatFont.fnt");
+        m_descInput = TextInput::create(inputW - 10.0f, "Descripcion...", "chatFont.fnt");
         m_descInput->setPosition({ rightX, descY - 30.0f });
         m_descInput->getBGSprite()->setVisible(false);
         m_descInput->setMaxCharCount(80);
+        m_descInput->setString(m_origDesc);
         m_mainLayer->addChild(m_descInput);
 
-      
+       
         float toggleY = descY - 60.0f;
 
         auto visTitleLabel = CCLabelBMFont::create("Visibilidad", "goldFont.fnt");
@@ -181,38 +166,31 @@ protected:
         visTitleLabel->setPosition({ rightX, toggleY });
         m_mainLayer->addChild(visTitleLabel);
 
-        m_visibilityStatusLabel = CCLabelBMFont::create("Publico", "chatFont.fnt");
+        m_visibilityStatusLabel = CCLabelBMFont::create(m_isPublic ? "Publico" : "Privado", "chatFont.fnt");
         m_visibilityStatusLabel->setScale(0.5f);
         m_visibilityStatusLabel->setAnchorPoint({ 1.0f, 0.5f });
-        m_visibilityStatusLabel->setPosition({ rightX - 8.0f, toggleY - 22.0f });
+        m_visibilityStatusLabel->setPosition({ rightX + 5.0f, toggleY - 22.0f });
         m_mainLayer->addChild(m_visibilityStatusLabel);
 
-        auto checkOn = CCSprite::createWithSpriteFrameName("GJ_checkOn_001.png");
         auto checkOff = CCSprite::createWithSpriteFrameName("GJ_checkOff_001.png");
-        m_visibilityToggle = CCMenuItemToggler::create(
-            checkOff, checkOn, this, menu_selector(CommunityPopup::onToggleVisibilityMark)
-        );
-        m_visibilityToggle->toggle(m_isPublic);
-        m_visibilityToggle->setScale(0.6f);
-        m_visibilityToggle->setPosition({ rightX + 15.0f, toggleY - 22.0f });
-        menu->addChild(m_visibilityToggle);
+        auto checkOn = CCSprite::createWithSpriteFrameName("GJ_checkOn_001.png");
+        auto visToggle = CCMenuItemToggler::create(checkOff, checkOn, this, menu_selector(CommunityEditPopup::onToggleVisibility));
+        visToggle->toggle(m_isPublic);
+        visToggle->setScale(0.6f);
+        visToggle->setPosition({ rightX + 15.0f, toggleY - 22.0f });
+        menu->addChild(visToggle);
 
-      
+     
         m_statusLabel = CCLabelBMFont::create("", "chatFont.fnt");
         m_statusLabel->setScale(0.4f);
         m_statusLabel->setPosition({ centerX, 50.0f });
         m_mainLayer->addChild(m_statusLabel);
 
-        auto createBtnSpr = ButtonSprite::create("Crear", "bigFont.fnt", "GJ_button_01.png", 0.8f);
-        createBtnSpr->setScale(0.85f);
-        auto createBtn = CCMenuItemSpriteExtra::create(createBtnSpr, this, menu_selector(CommunityPopup::onCreateCommunity));
-        createBtn->setPosition({ centerX, 25.0f });
-        menu->addChild(createBtn);
-
-        auto infoSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
-        auto infoBtn = CCMenuItemSpriteExtra::create(infoSpr, this, menu_selector(CommunityPopup::onInfo));
-        infoBtn->setPosition({ bgSize.width - 15.0f, bgSize.height - 15.0f });
-        menu->addChild(infoBtn);
+        auto saveBtnSpr = ButtonSprite::create("Guardar", "bigFont.fnt", "GJ_button_01.png", 0.8f);
+        saveBtnSpr->setScale(0.85f);
+        auto saveBtn = CCMenuItemSpriteExtra::create(saveBtnSpr, this, menu_selector(CommunityEditPopup::onSave));
+        saveBtn->setPosition({ centerX, 25.0f });
+        menu->addChild(saveBtn);
 
         return true;
     }
@@ -265,56 +243,38 @@ protected:
             }
             cellNode->addChild(cellBg);
 
-            
             auto player = SimplePlayer::create(iconId);
-            player->setColor(gm->colorForIdx(gm->getPlayerColor()));
-            player->setSecondColor(gm->colorForIdx(gm->getPlayerColor2()));
-            if (gm->getPlayerGlow()) {
-                player->setGlowOutline(gm->colorForIdx(gm->getPlayerGlowColor()));
+            player->setColor(gm->colorForIdx(m_selectedCol1));
+            player->setSecondColor(gm->colorForIdx(m_selectedCol2));
+            if (m_selectedGlow) {
+                player->setGlowOutline(gm->colorForIdx(m_selectedGlow));
             }
-            player->updateColors();  
             player->setScale(0.55f);
             player->setPosition({ cellSize / 2, cellSize / 2 });
             cellNode->addChild(player);
 
-            auto iconBtn = CCMenuItemSpriteExtra::create(cellNode, this, menu_selector(CommunityPopup::onSelectIcon));
+            auto iconBtn = CCMenuItemSpriteExtra::create(cellNode, this, menu_selector(CommunityEditPopup::onSelectIcon));
             iconBtn->setPosition({ x, y });
             iconBtn->setTag(iconId);
             iconMenu->addChild(iconBtn);
         }
 
         m_iconScroll->m_contentLayer->addChild(iconMenu);
-
         float minY = -(contentH - gridH);
         if (minY > 0.0f) minY = 0.0f;
         m_iconScroll->m_contentLayer->setPositionY(minY);
     }
 
-    void onToggleVisibilityMark(CCObject* sender) {
-        m_isPublic = !m_isPublic;
-        if (m_visibilityStatusLabel) {
-            m_visibilityStatusLabel->setString(m_isPublic ? "Publico" : "Privado");
-        }
-    }
-
     void onSelectIcon(CCObject* sender) {
         auto btn = static_cast<CCMenuItemSpriteExtra*>(sender);
-
-        
         auto btnWorldPos = btn->getParent()->convertToWorldSpace(btn->getPosition());
-
-     
         auto scrollWorldPos = m_iconScroll->getParent()->convertToWorldSpace(m_iconScroll->getPosition());
         float scrollHeight = m_iconScroll->getContentSize().height;
- 
-        if (btnWorldPos.y < scrollWorldPos.y || btnWorldPos.y >(scrollWorldPos.y + scrollHeight)) {
-            return;
-        }
+        if (btnWorldPos.y < scrollWorldPos.y || btnWorldPos.y >(scrollWorldPos.y + scrollHeight)) return;
 
         int iconId = btn->getTag();
         m_selectedIcon = iconId;
 
-      
         auto iconMenu = btn->getParent();
         for (int i = 0; i < iconMenu->getChildrenCount(); ++i) {
             if (auto otherBtn = static_cast<CCMenuItemSpriteExtra*>(iconMenu->getChildren()->objectAtIndex(i))) {
@@ -327,13 +287,11 @@ protected:
             }
         }
 
-      
         auto cellNode = static_cast<CCNode*>(btn->getNormalImage());
         if (auto bg = static_cast<CCScale9Sprite*>(cellNode->getChildByTag(100))) {
             bg->setColor({ 80, 200, 80 });
             bg->setOpacity(150);
         }
-
         updatePreview();
     }
 
@@ -346,28 +304,52 @@ protected:
 
         auto gm = GameManager::sharedState();
         m_previewPlayer = SimplePlayer::create(m_selectedIcon);
-        m_previewPlayer->setColor(gm->colorForIdx(gm->getPlayerColor()));
-        m_previewPlayer->setSecondColor(gm->colorForIdx(gm->getPlayerColor2()));
-        if (gm->getPlayerGlow()) {
-            m_previewPlayer->setGlowOutline(gm->colorForIdx(gm->getPlayerGlowColor()));
+        m_previewPlayer->setColor(gm->colorForIdx(m_selectedCol1));
+        m_previewPlayer->setSecondColor(gm->colorForIdx(m_selectedCol2));
+        if (m_selectedGlow) {
+            m_previewPlayer->setGlowOutline(gm->colorForIdx(m_selectedGlow));
         }
-        m_previewPlayer->updateColors();  
-        m_previewPlayer->setScale(1.0f);
-        m_previewPlayer->setPosition(pos);
-
         m_previewPlayer->setScale(0.0f);
+        m_previewPlayer->setPosition(pos);
         m_previewPlayer->runAction(CCEaseBackOut::create(CCScaleTo::create(0.25f, 1.0f)));
         parent->addChild(m_previewPlayer, z);
     }
 
-    void onInfo(CCObject* sender) { FLAlertLayer::create(nullptr, "Info", "<cg>Comunidad Publica</c>: Cualquiera puede unirse con el ID.\n<cr>Comunidad Privada</c>: Solo por invitacion.", "Okei", nullptr, 360)->show(); }
-    void onCreateCommunity(CCObject* sender) { std::string name = m_nameInput->getString(); if (name.empty()) { if (m_statusLabel) { m_statusLabel->setString("Escribe un nombre!"); m_statusLabel->setColor({ 255, 255, 100 }); } return; } if (m_statusLabel) { m_statusLabel->setString("Creando comunidad..."); m_statusLabel->setColor({ 255, 255, 255 }); } auto am = GJAccountManager::sharedState(); std::string ownerId = std::to_string(am->m_accountID); m_communityNet->crearComunidad(ownerId, name, m_descInput->getString(), m_selectedIcon, m_selectedCol1, m_selectedCol2, m_selectedGlow, m_isPublic); }
-    void onClose(CCObject* sender) override { if (m_communityNet) { m_communityNet->setOnCommunityCreated(nullptr); m_communityNet->setOnError(nullptr); m_communityNet->setLogCallback(nullptr); m_communityNet->release(); m_communityNet = nullptr; } Popup::onClose(sender); }
+    void onToggleVisibility(CCObject* sender) {
+        m_isPublic = !m_isPublic;
+        if (m_visibilityStatusLabel) {
+            m_visibilityStatusLabel->setString(m_isPublic ? "Publico" : "Privado");
+        }
+    }
+
+    void onSave(CCObject* sender) {
+        std::string name = m_nameInput->getString();
+        if (name.empty()) {
+            if (m_statusLabel) { m_statusLabel->setString("Escribe un nombre!"); m_statusLabel->setColor({ 255, 255, 100 }); }
+            return;
+        }
+        if (m_statusLabel) { m_statusLabel->setString("Guardando..."); m_statusLabel->setColor({ 255, 255, 255 }); }
+        m_net->editarComunidad(m_ownerId, m_communityId, name, m_descInput->getString(),
+            m_selectedIcon, m_selectedCol1, m_selectedCol2, m_selectedGlow, m_isPublic);
+    }
+
+    void onClose(CCObject* sender) override {
+        if (m_net) {
+            m_net->setOnCommunityEdited(nullptr);
+            m_net->setOnError(nullptr);
+            m_net->release();
+            m_net = nullptr;
+        }
+        Popup::onClose(sender);
+    }
 
 public:
-    static CommunityPopup* create(std::function<void()> onCreated = nullptr) {
-        auto ret = new CommunityPopup();
-        if (ret && ret->init(onCreated)) { ret->autorelease(); return ret; }
+    static CommunityEditPopup* create(std::string commId, std::string ownerId, CommunityInfo info, std::function<void()> onEdited = nullptr) {
+        auto ret = new CommunityEditPopup();
+        if (ret && ret->init(commId, ownerId, info, onEdited)) {
+            ret->autorelease();
+            return ret;
+        }
         CC_SAFE_DELETE(ret);
         return nullptr;
     }

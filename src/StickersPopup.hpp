@@ -24,8 +24,6 @@ public:
     }
 
     virtual void registerWithTouchDispatcher() override {
-        // El 'false' final es la magia: evita que el menú se trague el toque,
-        // permitiendo que el ScrollLayer también lo reciba y pueda moverse.
         CCDirector::sharedDirector()->getTouchDispatcher()->addTargetedDelegate(this, this->getTouchPriority(), false);
     }
 
@@ -36,11 +34,10 @@ public:
     }
 
     virtual void ccTouchMoved(CCTouch* touch, CCEvent* event) override {
-        // Si el toque se mueve más de 10 píxeles, asumimos que es un scroll
         if (ccpDistance(touch->getLocation(), m_touchStart) > 10.0f) {
             m_isSwiping = true;
             if (m_pSelectedItem) {
-                m_pSelectedItem->unselected(); // Quita el efecto visual de presionado
+                m_pSelectedItem->unselected();
                 m_pSelectedItem = nullptr;
                 m_eState = kCCMenuStateWaiting;
             }
@@ -49,7 +46,6 @@ public:
     }
 
     virtual void ccTouchEnded(CCTouch* touch, CCEvent* event) override {
-        // Si estábamos haciendo scroll, ignoramos el clic por completo
         if (m_isSwiping) {
             if (m_pSelectedItem) {
                 m_pSelectedItem->unselected();
@@ -73,7 +69,7 @@ protected:
     float m_scrollY = 0.0f;
 
     bool init(std::function<void(std::string)> callback) {
-        if (!Popup::init(300.f, 220.f, "GJ_ChatBg_003.png"_spr)) return false;
+        if (!Popup::init(300.f, 220.f, "GJ_square01.png")) return false;
 
         m_callback = callback;
         this->setTitle("Stickers", "bigFont.fnt", 0.6f);
@@ -89,12 +85,10 @@ protected:
 
             float MedioW = m_bgSprite->getContentSize().width / 2;
             float MedioH = m_bgSprite->getContentSize().height / 2;
-
             float BgMedioW = sideArt->getContentSize().width / 2;
             float BgMedioH = sideArt->getContentSize().height / 2;
 
             CCPoint pos;
-
             switch (i) {
             case 0:
                 pos = ccp(centerX - MedioW + BgMedioW, centerY - MedioH + BgMedioH);
@@ -185,7 +179,6 @@ protected:
                     if (scale > 1.0f) scale = 1.0f;
                 }
                 spr->setScale(scale);
-
                 spr->setPosition({ cellSize / 2.0f, cellSize / 2.0f });
                 container->addChild(spr);
             }

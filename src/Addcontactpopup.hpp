@@ -13,29 +13,23 @@ protected:
     CCLabelBMFont* m_statusLabel = nullptr;
     ScrollLayer* m_requestsScroll = nullptr;
     CCMenu* m_requestsMenu = nullptr;
-
     ContactsNetwork* m_network = nullptr;
-
-  
     std::function<void()> m_onContactsChanged;
-
-     
     std::string m_debugLog = "";
 
     bool init() {
-        if (!Popup::init(320.f, 240.f, "GJ_ChatBg_002.png"_spr)) return false;
+        if (!Popup::init(320.f, 240.f, "GJ_square01.png")) return false;
 
         this->setTitle("Contactos", "bigFont.fnt", 0.55f);
 
         auto bgSize = m_mainLayer->getContentSize();
         float centerX = bgSize.width / 2;
         float centerY = bgSize.height / 2;
-        
+
         m_network = ContactsNetwork::create();
         m_network->retain();
 
         m_network->setLogCallback([this](const std::string& msg) {
-           
             m_debugLog += msg + " | ";
             if (m_statusLabel) {
                 m_statusLabel->setString(msg.c_str());
@@ -59,35 +53,28 @@ protected:
             if (m_onContactsChanged) m_onContactsChanged();
             });
 
-        //////Esquinas xdd
-
         for (int i = 0; i < 4; i++) {
             auto sideArt = CCSprite::createWithSpriteFrameName("rewardCorner_001.png");
 
             float MedioW = m_bgSprite->getContentSize().width / 2;
             float MedioH = m_bgSprite->getContentSize().height / 2;
-
             float BgMedioW = sideArt->getContentSize().width / 2;
             float BgMedioH = sideArt->getContentSize().height / 2;
 
             CCPoint pos;
-
             switch (i) {
-                case 0: // abajo izquierda
+            case 0:
                 pos = ccp(centerX - MedioW + BgMedioW, centerY - MedioH + BgMedioH);
                 break;
-
-            case 1: // abajo derecha
+            case 1:
                 sideArt->setFlipX(true);
                 pos = ccp(centerX + MedioW - BgMedioW, centerY - MedioH + BgMedioH);
                 break;
-
-            case 2: // arriba izquierda
+            case 2:
                 sideArt->setFlipY(true);
                 pos = ccp(centerX - MedioW + BgMedioW, centerY + MedioH - BgMedioH);
                 break;
-
-            case 3: // arriba derecha
+            case 3:
                 sideArt->setFlipX(true);
                 sideArt->setFlipY(true);
                 pos = ccp(centerX + MedioW - BgMedioW, centerY + MedioH - BgMedioH);
@@ -109,16 +96,13 @@ protected:
         m_idInput->setMaxCharCount(30);
         m_mainLayer->addChild(m_idInput);
 
-        
         auto menu = CCMenu::create();
         menu->setPosition({ 0, 0 });
         m_mainLayer->addChild(menu);
 
-        ////Info Popup
-
         auto InfoSpr = CCSprite::createWithSpriteFrameName("GJ_infoIcon_001.png");
         auto InfoBtn = CCMenuItemSpriteExtra::create(InfoSpr, this, menu_selector(AddContactPopup::onInfo));
-        InfoBtn->setPosition({ bgSize.width - 5, bgSize.height - 5});
+        InfoBtn->setPosition({ bgSize.width - 5, bgSize.height - 5 });
         InfoBtn->setZOrder(10);
         menu->addChild(InfoBtn);
 
@@ -129,27 +113,16 @@ protected:
         sendBtn->setPosition({ centerX + 105.0f, bgSize.height - 80.0f });
         menu->addChild(sendBtn);
 
-       
         m_statusLabel = CCLabelBMFont::create("", "chatFont.fnt");
         m_statusLabel->setScale(0.45f);
         m_statusLabel->setPosition({ centerX, bgSize.height - 100.0f });
         m_mainLayer->addChild(m_statusLabel);
 
-        /*
-        auto separator = CCSprite::create("floorLine_001.png");
-        separator->setScaleX(0.6f);
-        separator->setScaleY(0.3f);
-        separator->setOpacity(100);
-        separator->setPosition({ centerX, bgSize.height - 115.0f });
-        m_mainLayer->addChild(separator);*/
-
-        
         auto requestsLabel = CCLabelBMFont::create("Solicitudes Recibidas:", "bigFont.fnt");
         requestsLabel->setScale(0.35f);
         requestsLabel->setPosition({ centerX, bgSize.height - 130.0f });
         m_mainLayer->addChild(requestsLabel);
 
-        
         float scrollW = 270.0f;
         float scrollH = 80.0f;
 
@@ -167,7 +140,6 @@ protected:
             });
         m_mainLayer->addChild(m_requestsScroll);
 
-        
         auto emptyLabel = CCLabelBMFont::create("Cargando...", "chatFont.fnt");
         emptyLabel->setScale(0.5f);
         emptyLabel->setPosition({ scrollW / 2, scrollH / 2 });
@@ -176,7 +148,6 @@ protected:
         m_requestsScroll->m_contentLayer->addChild(emptyLabel);
         m_requestsScroll->m_contentLayer->setContentSize({ scrollW, scrollH });
 
-        
         m_network->cargarSolicitudes();
 
         return true;
@@ -201,7 +172,6 @@ protected:
             return;
         }
 
-       
         auto am = GJAccountManager::sharedState();
         if (targetId == std::to_string(am->m_accountID)) {
             m_statusLabel->setString("No puedes agregarte a ti mismo!");
@@ -222,7 +192,6 @@ protected:
         float scrollH = 80.0f;
 
         if (requests.empty()) {
-            
             std::string debugText = m_debugLog.empty() ? "No hay solicitudes." : m_debugLog;
             auto emptyLabel = CCLabelBMFont::create(debugText.c_str(), "chatFont.fnt");
             emptyLabel->setScale(0.3f);
@@ -252,7 +221,6 @@ protected:
         for (const auto& req : requests) {
             currentY -= rowHeight;
 
-            
             std::string displayText = req.username + " (ID: " + req.accountId + ")";
             auto nameLabel = CCLabelBMFont::create(displayText.c_str(), "chatFont.fnt");
             nameLabel->setScale(0.45f);
@@ -260,7 +228,6 @@ protected:
             nameLabel->setPosition({ 10.0f, currentY + rowHeight / 2 });
             m_requestsScroll->m_contentLayer->addChild(nameLabel);
 
-          
             auto acceptSprite = CCSprite::createWithSpriteFrameName("GJ_completesIcon_001.png");
             acceptSprite->setScale(0.6f);
             auto acceptBtn = CCMenuItemSpriteExtra::create(acceptSprite, this, menu_selector(AddContactPopup::onAceptar));
@@ -268,7 +235,6 @@ protected:
             acceptBtn->setTag(std::stoi(req.accountId.empty() ? "0" : req.accountId));
             menu->addChild(acceptBtn);
 
-         
             auto rejectSprite = CCSprite::createWithSpriteFrameName("GJ_deleteIcon_001.png");
             rejectSprite->setScale(0.6f);
             auto rejectBtn = CCMenuItemSpriteExtra::create(rejectSprite, this, menu_selector(AddContactPopup::onRechazar));
@@ -277,7 +243,6 @@ protected:
             menu->addChild(rejectBtn);
         }
 
-        
         m_requestsScroll->m_contentLayer->setPositionY(0.0f);
     }
 
@@ -285,7 +250,6 @@ protected:
         auto btn = static_cast<CCMenuItemSpriteExtra*>(sender);
         int fromId = btn->getTag();
         if (fromId <= 0) return;
-
         m_network->aceptarSolicitud(std::to_string(fromId));
     }
 
@@ -293,23 +257,19 @@ protected:
         auto btn = static_cast<CCMenuItemSpriteExtra*>(sender);
         int fromId = btn->getTag();
         if (fromId <= 0) return;
-
         m_network->rechazarSolicitud(std::to_string(fromId));
     }
 
     void onClose(CCObject* sender) override {
- 
         if (m_onContactsChanged) {
             m_onContactsChanged();
         }
 
-      
         if (m_network) {
             m_network->setLogCallback(nullptr);
             m_network->setOnSolicitudSent(nullptr);
             m_network->setOnRequestsLoaded(nullptr);
             m_network->setOnRequestAccepted(nullptr);
-
             m_network->release();
             m_network = nullptr;
         }

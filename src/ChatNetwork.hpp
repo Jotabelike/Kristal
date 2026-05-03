@@ -82,7 +82,7 @@ public:
      
         request->setRequestData(postData.c_str(), postData.length());
 
-        // Como no nos importa la respuesta, lo enviamos y nos olvidamos
+   
         CCHttpClient::getInstance()->send(request);
         request->release();
     }

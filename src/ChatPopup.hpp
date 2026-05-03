@@ -6,9 +6,9 @@
 #include "ChatNetwork.hpp"
 #include "ContactsNetwork.hpp"
 #include "AddContactPopup.hpp"
-#include "ChatBubble.hpp" 
-#include "StickerManager.hpp" 
-#include "StickersPopup.hpp"  
+#include "ChatBubble.hpp"
+#include "StickerManager.hpp"
+#include "StickersPopup.hpp"
 #include "CommunityPopup.hpp"
 #include "CommunityAddMemberPopup.hpp"
 #include "CommunityMembersPopup.hpp"
@@ -83,6 +83,7 @@ protected:
         return name;
     }
 
+#ifdef GEODE_IS_DESKTOP
     bool isMouseOverNode(CCNode* node, CCPoint worldPos) {
         if (!node || !node->isVisible()) {
             return false;
@@ -114,9 +115,10 @@ protected:
             return;
         }
     }
+#endif
 
     bool init(ContactInfo* preOpenContact) {
-        if (!Popup::init(420.f, 260.f, "GJ_ChatBg_001.png"_spr)) {
+        if (!Popup::init(420.f, 260.f, "GJ_square01.png")) {
             return false;
         }
 
@@ -176,7 +178,7 @@ protected:
 
         m_network = ChatNetwork::create();
         m_network->retain();
-m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) {
+        m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) {
             if (mensajes.empty()) {
                 if (m_lastMessageCount > 0) {
                     this->limpiarChat(true);
@@ -192,9 +194,7 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
                 return;
             }
 
-         
             bool isInitialLoad = (m_lastMessageCount == 0);
-            
             bool isNewMessage = !isSameLastMsg || mensajes.size() > m_lastMessageCount;
             m_lastMessageCount = mensajes.size();
             m_lastMessageText = currentLastText;
@@ -208,15 +208,11 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
                 const auto& msg = mensajes[idx];
                 bool isMe = (msg.senderId == myId);
                 bool isLast = (idx == mensajes.size() - 1);
-                
-                // MODIFICADO: Agregamos la condición !isInitialLoad
-                // Solo animará si fue el último que enviaste tú, o si es un mensaje nuevo PERO no es la carga inicial del chat.
                 bool animateThis = isLast && (m_animateLastSent || (isNewMessage && !isMe && !isInitialLoad));
-                
                 this->addMessage(msg, isMe, animateThis);
             }
             m_animateLastSent = false;
-        });
+            });
 
         m_contactsNetwork = ContactsNetwork::create();
         m_contactsNetwork->retain();
@@ -280,7 +276,6 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
         m_deleteCommunityBtn->setVisible(false);
         fixedMenu->addChild(m_deleteCommunityBtn);
 
-
         auto sideMenu = CCMenu::create();
         sideMenu->setPosition({ bgSize.width + 25.0f, bgSize.height / 2 + 10.0f });
         m_mainLayer->addChild(sideMenu, 2);
@@ -337,11 +332,11 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
         stickerBtn->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 224.0f, chatBG->getPositionY() - m_chatHeight / 2 + 22.0f });
         inputMenu->addChild(stickerBtn);
 
-        auto ImputBg = CCScale9Sprite::create("square02_small.png", CCRectMake(0.0f, 0.0f, 40.0f, 40.0f));
-        ImputBg->setContentSize({ 235.0f, 30.0f });
-        ImputBg->setOpacity(90);
-        ImputBg->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 126.0f, chatBG->getPositionY() - m_chatHeight / 2 + 22.0f });
-        m_mainLayer->addChild(ImputBg);
+        auto inputBg = CCScale9Sprite::create("square02_small.png", CCRectMake(0.0f, 0.0f, 40.0f, 40.0f));
+        inputBg->setContentSize({ 235.0f, 30.0f });
+        inputBg->setOpacity(90);
+        inputBg->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 126.0f, chatBG->getPositionY() - m_chatHeight / 2 + 22.0f });
+        m_mainLayer->addChild(inputBg);
 
         float anchoInput = m_chatWidth - 120.0f;
         m_input = TextInput::create(anchoInput, "Escribe un mensaje...", "chatFont.fnt");
@@ -349,7 +344,7 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
         m_input->getBGSprite()->setVisible(false);
         m_input->setTextAlign(geode::TextInputAlign::Left);
         m_input->getInputNode()->setDelegate(this);
-        m_input->getInputNode()->setAllowedChars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !@#$%^&*()-_=+[]{}|;:',.<>?/`~\"\\Ññ");
+        m_input->getInputNode()->setAllowedChars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !@#$%^&*()-_=+[]{}|;:',.<>?/`~\"\\");
         m_mainLayer->addChild(m_input);
 
         auto sendBtnSprite = CCSprite::createWithSpriteFrameName("SendSpr.png"_spr);
@@ -358,11 +353,11 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
         sendBtn->setPosition({ chatBG->getPositionX() + (m_chatWidth / 2) - 48.0f, m_input->getPositionY() });
         inputMenu->addChild(sendBtn);
 
-        auto SharedSpr = CCSprite::createWithSpriteFrameName("Shared.png"_spr);
-        SharedSpr->setScale(0.5f);
-        auto SharedBtn = CCMenuItemSpriteExtra::create(SharedSpr, this, nullptr);
-        SharedBtn->setPosition({ chatBG->getPositionX() + (m_chatWidth / 2) - 20.0f, m_input->getPositionY() });
-        inputMenu->addChild(SharedBtn);
+        auto sharedSpr = CCSprite::createWithSpriteFrameName("Shared.png"_spr);
+        sharedSpr->setScale(0.5f);
+        auto sharedBtn = CCMenuItemSpriteExtra::create(sharedSpr, this, nullptr);
+        sharedBtn->setPosition({ chatBG->getPositionX() + (m_chatWidth / 2) - 20.0f, m_input->getPositionY() });
+        inputMenu->addChild(sharedBtn);
 
         this->schedule(schedule_selector(ChatPopup::onPollServer), 3.5f);
         this->schedule(schedule_selector(ChatPopup::onPollContacts), 15.0f);
@@ -377,7 +372,9 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
             m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
         }
 
+#ifdef GEODE_IS_DESKTOP
         this->scheduleOnce(schedule_selector(ChatPopup::setupScrollMouseHandling), 0.0f);
+#endif
 
         return true;
     }
@@ -493,8 +490,7 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
         }
     }
 
-    virtual void textChanged(CCTextInputNode* input) override {
-    }
+    virtual void textChanged(CCTextInputNode* input) override {}
 
     void mostrarContactos(const std::vector<ContactInfo>& contactos) {
         m_contactsScroll->m_contentLayer->removeAllChildren();
@@ -679,8 +675,8 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
             m_chatSubtitle->setString(("Chat: " + m_activeChatName).c_str());
         }
         if (m_addMemberBtn) {
-            auto am = GJAccountManager::sharedState();
-            std::string myId = std::to_string(am->m_accountID);
+            auto am2 = GJAccountManager::sharedState();
+            std::string myId = std::to_string(am2->m_accountID);
             bool isOwner = (m_activeContact.isCommunity && m_activeContact.ownerId == myId);
             m_addMemberBtn->setVisible(isOwner);
             m_membersBtn->setVisible(isOwner);
@@ -829,7 +825,6 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
                 msgNode->addChild(botIcon);
             }
             else if (m_activeContact.isCommunity && !chatMsg.senderName.empty()) {
-                // En comunidades: mostrar cubo y nombre del remitente individual
                 auto player = SimplePlayer::create(chatMsg.senderIcon);
                 player->setColor(gm->colorForIdx(chatMsg.senderCol1));
                 player->setSecondColor(gm->colorForIdx(chatMsg.senderCol2));
@@ -1003,8 +998,6 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
         this->onSend(nullptr);
     }
 
-
-
     void onClose(CCObject* sender) override {
         if (!m_closedByBubble && ChatBubble::s_instance) {
             ChatBubble::s_instance->hide();
@@ -1035,7 +1028,9 @@ m_network->setOnMessagesLoaded([this](const std::vector<ChatMessage>& mensajes) 
             m_communityNet->release();
             m_communityNet = nullptr;
         }
+#ifdef GEODE_IS_DESKTOP
         CCDirector::sharedDirector()->getMouseDispatcher()->removeDelegate(static_cast<CCMouseDelegate*>(this));
+#endif
         Popup::onClose(sender);
     }
 

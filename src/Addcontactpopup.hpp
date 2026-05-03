@@ -17,7 +17,7 @@ protected:
     std::function<void()> m_onContactsChanged;
     std::string m_debugLog = "";
 
-    bool init() {
+    bool init() override {
         if (!Popup::init(320.f, 240.f, "GJ_square01.png")) return false;
 
         this->setTitle("Contactos", "bigFont.fnt", 0.55f);

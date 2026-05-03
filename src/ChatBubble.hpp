@@ -19,12 +19,11 @@ protected:
     CCPoint m_touchStartPos;
     CCPoint m_nodeStartPos;
 
-    bool init() {
+    bool init() override {
         if (!CCNode::init()) return false;
 
         this->setContentSize({ 45.f, 45.f });
         this->setAnchorPoint({ 0.5f, 0.5f });
-
         this->ignoreAnchorPointForPosition(false);
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
@@ -105,7 +104,6 @@ protected:
             m_isDragging = false;
             m_touchStartPos = touch->getLocation();
             m_nodeStartPos = this->getPosition();
-
             this->stopAllActions();
             this->runAction(CCScaleTo::create(0.1f, 0.9f));
             return true;
@@ -148,19 +146,16 @@ public:
 
     static ChatBubble* sharedBubble() {
         if (!s_instance) {
-            auto director = CCDirector::sharedDirector();
-            if (!director->getNotificationNode()) {
-                director->setNotificationNode(CCNode::create());
-            }
+            auto overlay = geode::OverlayManager::get();
 
-            if (auto old = director->getNotificationNode()->getChildByID("kristal-chat-bubble")) {
+            if (auto old = overlay->getChildByID("kristal-chat-bubble")) {
                 old->removeFromParent();
             }
 
             s_instance = new ChatBubble();
             if (s_instance && s_instance->init()) {
                 s_instance->setID("kristal-chat-bubble");
-                director->getNotificationNode()->addChild(s_instance, 99999);
+                overlay->addChild(s_instance, 99999);
             }
             else {
                 CC_SAFE_DELETE(s_instance);
@@ -209,7 +204,6 @@ public:
         }
 
         this->setVisible(true);
-
         this->stopAllActions();
         this->setScale(0.0f);
         this->runAction(CCEaseElasticOut::create(CCScaleTo::create(0.5f, 1.0f), 0.6f));

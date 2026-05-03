@@ -15,8 +15,9 @@
 #include "CommunityEditPopup.hpp"
 #include <fstream>
 
-using namespace geode::prelude;
 
+// pepe
+using namespace geode::prelude;
 class ChatPopup : public geode::Popup, public TextInputDelegate, public FLAlertLayerProtocol {
 protected:
     TextInput* m_input;

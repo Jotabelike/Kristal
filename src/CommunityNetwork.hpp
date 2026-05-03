@@ -182,7 +182,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/crear").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -202,7 +202,7 @@ public:
         long statusCode = response->getResponseCode();
         std::string body = "";
         if (response->getResponseData()) {
-            std::vector<char>* data = response->getResponseData();
+            gd::vector<char>* data = response->getResponseData();
             body = std::string(data->begin(), data->end());
         }
 
@@ -246,7 +246,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidades").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -261,7 +261,7 @@ public:
             if (m_onCommunitiesLoaded) m_onCommunitiesLoaded({});
             return;
         }
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
         auto list = parseCommunityArray(body);
         log("[Community] Cargadas: " + std::to_string(list.size()));
@@ -277,7 +277,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/buscar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -292,7 +292,7 @@ public:
             if (m_onError) m_onError("Comunidad no encontrada");
             return;
         }
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
         auto info = parseCommunityFromJson(body);
         if (!info.communityId.empty()) {
@@ -313,7 +313,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/unirse").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -342,7 +342,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/agregar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -358,7 +358,7 @@ public:
             return;
         }
 
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
         std::string success = extractJsonValue(body, "success");
 
@@ -381,7 +381,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/miembros").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -396,7 +396,7 @@ public:
             if (m_onMembersLoaded) m_onMembersLoaded({});
             return;
         }
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
         auto members = parseMemberArray(body);
         log("[Community] Miembros cargados: " + std::to_string(members.size()));
@@ -413,7 +413,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/expulsar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -446,7 +446,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/eliminar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -490,7 +490,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/comunidad/editar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());

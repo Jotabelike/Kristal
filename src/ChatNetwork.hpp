@@ -79,10 +79,10 @@ public:
         request->setUrl((m_baseUrl + "/limpiar_historial").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
 
-     
+
         request->setRequestData(postData.c_str(), postData.length());
 
-   
+
         CCHttpClient::getInstance()->send(request);
         request->release();
     }
@@ -113,7 +113,7 @@ public:
         request->setUrl((m_baseUrl + "/registrar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
 
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ChatNetwork::onRegistroResponse));
@@ -131,7 +131,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/enviar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ChatNetwork::onEnviarResponse));
         request->setTag("enviar");
@@ -146,7 +146,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/mensajes").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ChatNetwork::onMensajesResponse));
         request->setTag("cargarMensajes");
@@ -156,7 +156,7 @@ public:
 
     void onMensajesResponse(CCHttpClient* sender, CCHttpResponse* response) {
         if (!response || !response->isSucceed()) return;
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
 
         if (m_onMessagesLoaded) {
@@ -194,7 +194,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/escribiendo").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -212,7 +212,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/estado_escribiendo").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ChatNetwork::onCheckEscribiendo));
         request->setTag("checkEscribiendo");
@@ -222,7 +222,7 @@ public:
 
     void onCheckEscribiendo(CCHttpClient* sender, CCHttpResponse* response) {
         if (!response || !response->isSucceed()) return;
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
 
         std::string esc = extractJsonValue(body, "escribiendo");

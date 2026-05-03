@@ -126,7 +126,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/solicitud/enviar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers;
+        gd::vector<gd::string> headers;
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
@@ -138,7 +138,7 @@ public:
 
     void onEnviarSolicitudResponse(CCHttpClient* sender, CCHttpResponse* response) {
         if (!response) { if (m_onSolicitudSent) m_onSolicitudSent(false, "Sin respuesta."); return; }
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
         if (response->isSucceed()) { if (m_onSolicitudSent) m_onSolicitudSent(true, "Solicitud enviada!"); }
         else { std::string errorMsg = extractJsonValue(body, "error"); if (errorMsg.empty()) errorMsg = body; if (m_onSolicitudSent) m_onSolicitudSent(false, errorMsg); }
@@ -151,7 +151,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/solicitudes").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ContactsNetwork::onSolicitudesResponse));
@@ -162,7 +162,7 @@ public:
 
     void onSolicitudesResponse(CCHttpClient* sender, CCHttpResponse* response) {
         if (!response || !response->isSucceed()) { if (m_onRequestsLoaded) m_onRequestsLoaded({}); return; }
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
         auto solicitudes = parseContactArray(body);
         if (m_onRequestsLoaded) m_onRequestsLoaded(solicitudes);
@@ -175,7 +175,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/solicitud/aceptar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ContactsNetwork::onAceptarResponse));
         request->setTag("aceptar");
@@ -190,7 +190,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/solicitud/rechazar").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded"); request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ContactsNetwork::onRechazarResponse));
         request->setTag("rechazar");
@@ -206,7 +206,7 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/contactos").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-        std::vector<std::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        gd::vector<gd::string> headers; headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ContactsNetwork::onContactosResponse));
@@ -217,7 +217,7 @@ public:
 
     void onContactosResponse(CCHttpClient* sender, CCHttpResponse* response) {
         if (!response || !response->isSucceed()) { if (m_onContactsLoaded) m_onContactsLoaded({}); return; }
-        std::vector<char>* data = response->getResponseData();
+        gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
 
 

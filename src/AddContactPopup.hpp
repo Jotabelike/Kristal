@@ -85,7 +85,7 @@ protected:
             m_mainLayer->addChild(sideArt);
         }
 
-        auto sendSectionLabel = CCLabelBMFont::create("Agregar por ID:", "bigFont.fnt");
+        auto sendSectionLabel = CCLabelBMFont::create("Add by ID:", "bigFont.fnt");
         sendSectionLabel->setScale(0.4f);
         sendSectionLabel->setPosition({ centerX, bgSize.height - 55.0f });
         m_mainLayer->addChild(sendSectionLabel);
@@ -118,7 +118,7 @@ protected:
         m_statusLabel->setPosition({ centerX, bgSize.height - 100.0f });
         m_mainLayer->addChild(m_statusLabel);
 
-        auto requestsLabel = CCLabelBMFont::create("Solicitudes Recibidas:", "bigFont.fnt");
+        auto requestsLabel = CCLabelBMFont::create("Applications Received:", "bigFont.fnt");
         requestsLabel->setScale(0.35f);
         requestsLabel->setPosition({ centerX, bgSize.height - 130.0f });
         m_mainLayer->addChild(requestsLabel);
@@ -140,7 +140,7 @@ protected:
             });
         m_mainLayer->addChild(m_requestsScroll);
 
-        auto emptyLabel = CCLabelBMFont::create("Cargando...", "chatFont.fnt");
+        auto emptyLabel = CCLabelBMFont::create("Loading...", "chatFont.fnt");
         emptyLabel->setScale(0.5f);
         emptyLabel->setPosition({ scrollW / 2, scrollH / 2 });
         emptyLabel->setColor({ 150, 150, 150 });
@@ -157,29 +157,29 @@ protected:
         auto GM2 = GJAccountManager::sharedState();
 
         std::string Info =
-            "Al <co>agregar contactos</c> puedes hablar con ellos.\n"
-            "Puedes agregar usando su <cg>AccountID</c> o recibir solicitudes de otros.\n"
-            "<cg>Tu AccountID</c>: " + std::to_string(GM2->m_accountID);
+            "Al <co>add contacts</c> you can talk to them.\n"
+            "You can add using your <cg>AccountID</c> or receive requests from others.\n"
+            "<cg>your AccountID</c>: " + std::to_string(GM2->m_accountID);
 
-        FLAlertLayer::create(nullptr, "Contactos", Info.c_str(), "Okei", nullptr, 360)->show();
+        FLAlertLayer::create(nullptr, "Contacts", Info.c_str(), "Okei", nullptr, 360)->show();
     }
 
     void onEnviarSolicitud(CCObject* sender) {
         std::string targetId = m_idInput->getString();
         if (targetId.empty()) {
-            m_statusLabel->setString("Escribe un Account ID.");
+            m_statusLabel->setString("Enter an Account ID.");
             m_statusLabel->setColor({ 255, 255, 100 });
             return;
         }
 
         auto am = GJAccountManager::sharedState();
         if (targetId == std::to_string(am->m_accountID)) {
-            m_statusLabel->setString("No puedes agregarte a ti mismo!");
+            m_statusLabel->setString("You can't add yourself!");
             m_statusLabel->setColor({ 255, 100, 100 });
             return;
         }
 
-        m_statusLabel->setString("Enviando...");
+        m_statusLabel->setString("Sending...");
         m_statusLabel->setColor({ 255, 255, 255 });
         m_network->enviarSolicitud(targetId);
         m_idInput->setString("");
@@ -192,7 +192,7 @@ protected:
         float scrollH = 80.0f;
 
         if (requests.empty()) {
-            std::string debugText = m_debugLog.empty() ? "No hay solicitudes." : m_debugLog;
+            std::string debugText = m_debugLog.empty() ? "There are no requests." : m_debugLog;
             auto emptyLabel = CCLabelBMFont::create(debugText.c_str(), "chatFont.fnt");
             emptyLabel->setScale(0.3f);
             emptyLabel->setAnchorPoint({ 0.0f, 1.0f });

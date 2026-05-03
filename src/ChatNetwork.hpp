@@ -78,11 +78,12 @@ public:
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/limpiar_historial").c_str());
         request->setRequestType(CCHttpRequest::kHttpPost);
-
-
+        gd::vector<gd::string> headers;
+        headers.push_back("Content-Type: application/x-www-form-urlencoded");
+        request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
-
-
+        request->setResponseCallback(this, httpresponse_selector(ChatNetwork::onNoOpResponse));
+        request->setTag("limpiarHistorial");
         CCHttpClient::getInstance()->send(request);
         request->release();
     }
@@ -93,9 +94,8 @@ public:
         int accountId = am->m_accountID;
         std::string username = am->m_username;
 
-        if (accountId == 0) { log("Error: No hay cuenta de GD iniciada."); return; }
-        if (username.empty()) username = "UsuarioDesconocido";
-
+        if (accountId == 0) { log("Error: No GD account is logged in."); return; }
+        if (username.empty()) username = "UnknownUser";
 
         int icon = gm->getPlayerFrame();
         int col1 = gm->getPlayerColor();
@@ -117,13 +117,13 @@ public:
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
         request->setResponseCallback(this, httpresponse_selector(ChatNetwork::onRegistroResponse));
-        request->setTag("registro");
+        request->setTag("register");
         CCHttpClient::getInstance()->send(request);
         request->release();
     }
 
     void onRegistroResponse(CCHttpClient* sender, CCHttpResponse* response) {}
-
+    void onNoOpResponse(CCHttpClient* sender, CCHttpResponse* response) {}
 
     void enviarMensaje(const std::string& fromId, const std::string& toId, const std::string& texto) {
         if (fromId.empty() || toId.empty() || texto.empty()) return;
@@ -198,9 +198,7 @@ public:
         headers.push_back("Content-Type: application/x-www-form-urlencoded");
         request->setHeaders(headers);
         request->setRequestData(postData.c_str(), postData.length());
-
-
-
+        request->setResponseCallback(this, httpresponse_selector(ChatNetwork::onNoOpResponse));
         request->setTag("escribiendo");
         CCHttpClient::getInstance()->send(request);
         request->release();

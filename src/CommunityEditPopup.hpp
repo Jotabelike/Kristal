@@ -43,7 +43,7 @@ protected:
         m_selectedGlow = info.glow;
         m_isPublic = info.isPublic;
 
-        this->setTitle("Editar Comunidad", "bigFont.fnt", 0.6f);
+        this->setTitle("Edit Community", "bigFont.fnt", 0.6f);
 
         auto bgSize = m_mainLayer->getContentSize();
         float centerX = bgSize.width / 2;
@@ -51,7 +51,7 @@ protected:
         m_net = CommunityNetwork::create();
         m_net->retain();
         m_net->setOnCommunityEdited([this]() {
-            FLAlertLayer::create(nullptr, "Exito", "Comunidad editada!", "OK", nullptr, 300)->show();
+            FLAlertLayer::create(nullptr, "Success", "Edited community!", "OK", nullptr, 300)->show();
             if (m_onEdited) m_onEdited();
             this->onClose(nullptr);
             });
@@ -86,7 +86,7 @@ protected:
         m_previewPlayer->setPosition({ leftX, topY - 15.0f });
         m_mainLayer->addChild(m_previewPlayer, 1);
 
-        auto previewLabel = CCLabelBMFont::create("Icono", "goldFont.fnt");
+        auto previewLabel = CCLabelBMFont::create("Icon", "goldFont.fnt");
         previewLabel->setScale(0.4f);
         previewLabel->setPosition({ leftX, topY + 15.0f });
         m_mainLayer->addChild(previewLabel);
@@ -117,7 +117,7 @@ protected:
         float inputW = 170.0f;
         float fieldY = topY + 5.0f;
 
-        auto nameLabel = CCLabelBMFont::create("Nombre", "goldFont.fnt");
+        auto nameLabel = CCLabelBMFont::create("Name", "goldFont.fnt");
         nameLabel->setScale(0.4f);
         nameLabel->setPosition({ rightX, fieldY });
         m_mainLayer->addChild(nameLabel);
@@ -129,7 +129,7 @@ protected:
         nameBg->setPosition({ rightX, fieldY - 22.0f });
         m_mainLayer->addChild(nameBg);
 
-        m_nameInput = TextInput::create(inputW - 10.0f, "Nombre...", "chatFont.fnt");
+        m_nameInput = TextInput::create(inputW - 10.0f, "Name...", "chatFont.fnt");
         m_nameInput->setPosition({ rightX, fieldY - 22.0f });
         m_nameInput->getBGSprite()->setVisible(false);
         m_nameInput->setMaxCharCount(24);
@@ -139,7 +139,7 @@ protected:
       
         float descY = fieldY - 60.0f;
 
-        auto descLabel = CCLabelBMFont::create("Descripcion", "goldFont.fnt");
+        auto descLabel = CCLabelBMFont::create("Description", "goldFont.fnt");
         descLabel->setScale(0.4f);
         descLabel->setPosition({ rightX, descY });
         m_mainLayer->addChild(descLabel);
@@ -151,7 +151,7 @@ protected:
         descBg->setPosition({ rightX, descY - 30.0f });
         m_mainLayer->addChild(descBg);
 
-        m_descInput = TextInput::create(inputW - 10.0f, "Descripcion...", "chatFont.fnt");
+        m_descInput = TextInput::create(inputW - 10.0f, "Description...", "chatFont.fnt");
         m_descInput->setPosition({ rightX, descY - 30.0f });
         m_descInput->getBGSprite()->setVisible(false);
         m_descInput->setMaxCharCount(80);
@@ -161,12 +161,12 @@ protected:
        
         float toggleY = descY - 60.0f;
 
-        auto visTitleLabel = CCLabelBMFont::create("Visibilidad", "goldFont.fnt");
+        auto visTitleLabel = CCLabelBMFont::create("privacy", "goldFont.fnt");
         visTitleLabel->setScale(0.4f);
         visTitleLabel->setPosition({ rightX, toggleY });
         m_mainLayer->addChild(visTitleLabel);
 
-        m_visibilityStatusLabel = CCLabelBMFont::create(m_isPublic ? "Publico" : "Privado", "chatFont.fnt");
+        m_visibilityStatusLabel = CCLabelBMFont::create(m_isPublic ? "Public" : "Private", "chatFont.fnt");
         m_visibilityStatusLabel->setScale(0.5f);
         m_visibilityStatusLabel->setAnchorPoint({ 1.0f, 0.5f });
         m_visibilityStatusLabel->setPosition({ rightX + 5.0f, toggleY - 22.0f });
@@ -186,7 +186,7 @@ protected:
         m_statusLabel->setPosition({ centerX, 50.0f });
         m_mainLayer->addChild(m_statusLabel);
 
-        auto saveBtnSpr = ButtonSprite::create("Guardar", "bigFont.fnt", "GJ_button_01.png", 0.8f);
+        auto saveBtnSpr = ButtonSprite::create("Save", "bigFont.fnt", "GJ_button_01.png", 0.8f);
         saveBtnSpr->setScale(0.85f);
         auto saveBtn = CCMenuItemSpriteExtra::create(saveBtnSpr, this, menu_selector(CommunityEditPopup::onSave));
         saveBtn->setPosition({ centerX, 25.0f });
@@ -318,17 +318,17 @@ protected:
     void onToggleVisibility(CCObject* sender) {
         m_isPublic = !m_isPublic;
         if (m_visibilityStatusLabel) {
-            m_visibilityStatusLabel->setString(m_isPublic ? "Publico" : "Privado");
+            m_visibilityStatusLabel->setString(m_isPublic ? "Public" : "Private");
         }
     }
 
     void onSave(CCObject* sender) {
         std::string name = m_nameInput->getString();
         if (name.empty()) {
-            if (m_statusLabel) { m_statusLabel->setString("Escribe un nombre!"); m_statusLabel->setColor({ 255, 255, 100 }); }
+            if (m_statusLabel) { m_statusLabel->setString("Write a name!"); m_statusLabel->setColor({ 255, 255, 100 }); }
             return;
         }
-        if (m_statusLabel) { m_statusLabel->setString("Guardando..."); m_statusLabel->setColor({ 255, 255, 255 }); }
+        if (m_statusLabel) { m_statusLabel->setString("Saving..."); m_statusLabel->setColor({ 255, 255, 255 }); }
         m_net->editarComunidad(m_ownerId, m_communityId, name, m_descInput->getString(),
             m_selectedIcon, m_selectedCol1, m_selectedCol2, m_selectedGlow, m_isPublic);
     }

@@ -198,9 +198,9 @@ protected:
 
     void onInfo(CCObject* sender) {
         std::string Info =
-            "Los <cg>Stickers</c> son imagenes para usar en el chat.\n"
-            "<cr>Solo se envia el sticker</c>\n"
-            "No se puede mezclar con texto.";
+            "The <cg>Stickers < / with images to use in chat.\n"
+            "<cr>Only the sticker is sent</c>\n"
+            "It cannot be mixed with text.";
 
         FLAlertLayer::create(nullptr, "Stickers", Info.c_str(), "Okei", nullptr, 360)->show();
     }

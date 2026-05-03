@@ -33,7 +33,7 @@ protected:
         if (!Popup::init(400.f, 280.f, "GJ_square01.png")) return false;
         m_onCreated = onCreated;
 
-        this->setTitle("Crear Comunidad", "bigFont.fnt", 0.6f);
+        this->setTitle("Create Community", "bigFont.fnt", 0.6f);
 
         auto bgSize = m_mainLayer->getContentSize();
         float centerX = bgSize.width / 2;
@@ -62,7 +62,7 @@ protected:
         m_communityNet->retain();
 
         m_communityNet->setOnCommunityCreated([this](const CommunityInfo& info) {
-            FLAlertLayer::create(nullptr, "Comunidad Creada", ("Tu comunidad <cg>" + info.name + "</c> fue creada!").c_str(), "Genial!", nullptr, 320)->show();
+            FLAlertLayer::create(nullptr, "Created Community", ("Your community <cg>" + info.name + "</c> was created!").c_str(), "Cool!", nullptr, 320)->show();
             if (m_onCreated) m_onCreated();
             });
         m_communityNet->setOnError([this](const std::string& err) { if (m_statusLabel) { m_statusLabel->setString(err.c_str()); m_statusLabel->setColor({ 255, 80, 80 }); } });
@@ -102,7 +102,7 @@ protected:
         m_previewPlayer->setPosition({ leftX, topY - 15.0f });
         m_mainLayer->addChild(m_previewPlayer, 1);
 
-        auto previewLabel = CCLabelBMFont::create("Icono", "goldFont.fnt");
+        auto previewLabel = CCLabelBMFont::create("Icon", "goldFont.fnt");
         previewLabel->setScale(0.4f);
         previewLabel->setPosition({ leftX, topY + 15.0f });
         m_mainLayer->addChild(previewLabel);
@@ -134,7 +134,7 @@ protected:
         float fieldY = topY + 5.0f;
 
         // --- Nombre ---
-        auto nameLabel = CCLabelBMFont::create("Nombre", "goldFont.fnt");
+        auto nameLabel = CCLabelBMFont::create("Name", "goldFont.fnt");
         nameLabel->setScale(0.4f);
         nameLabel->setPosition({ rightX, fieldY });
         m_mainLayer->addChild(nameLabel);
@@ -146,7 +146,7 @@ protected:
         nameBg->setPosition({ rightX, fieldY - 22.0f });
         m_mainLayer->addChild(nameBg);
 
-        m_nameInput = TextInput::create(inputW - 10.0f, "Nombre de la comunidad...", "chatFont.fnt");
+        m_nameInput = TextInput::create(inputW - 10.0f, "Community name...", "chatFont.fnt");
         m_nameInput->setPosition({ rightX, fieldY - 22.0f });
         m_nameInput->getBGSprite()->setVisible(false);
         m_nameInput->setMaxCharCount(24);
@@ -155,7 +155,7 @@ protected:
         // --- Descripcion ---
         float descY = fieldY - 60.0f;
 
-        auto descLabel = CCLabelBMFont::create("Descripcion", "goldFont.fnt");
+        auto descLabel = CCLabelBMFont::create("Description", "goldFont.fnt");
         descLabel->setScale(0.4f);
         descLabel->setPosition({ rightX, descY });
         m_mainLayer->addChild(descLabel);
@@ -167,7 +167,7 @@ protected:
         descBg->setPosition({ rightX, descY - 30.0f });
         m_mainLayer->addChild(descBg);
 
-        m_descInput = TextInput::create(inputW - 10.0f, "Describe tu comunidad...", "chatFont.fnt");
+        m_descInput = TextInput::create(inputW - 10.0f, "Describe your community...", "chatFont.fnt");
         m_descInput->setPosition({ rightX, descY - 30.0f });
         m_descInput->getBGSprite()->setVisible(false);
         m_descInput->setMaxCharCount(80);
@@ -176,12 +176,12 @@ protected:
       
         float toggleY = descY - 60.0f;
 
-        auto visTitleLabel = CCLabelBMFont::create("Visibilidad", "goldFont.fnt");
+        auto visTitleLabel = CCLabelBMFont::create("Privacity", "goldFont.fnt");
         visTitleLabel->setScale(0.4f);
         visTitleLabel->setPosition({ rightX, toggleY });
         m_mainLayer->addChild(visTitleLabel);
 
-        m_visibilityStatusLabel = CCLabelBMFont::create("Publico", "chatFont.fnt");
+        m_visibilityStatusLabel = CCLabelBMFont::create("Public", "chatFont.fnt");
         m_visibilityStatusLabel->setScale(0.5f);
         m_visibilityStatusLabel->setAnchorPoint({ 1.0f, 0.5f });
         m_visibilityStatusLabel->setPosition({ rightX - 8.0f, toggleY - 22.0f });
@@ -203,7 +203,7 @@ protected:
         m_statusLabel->setPosition({ centerX, 50.0f });
         m_mainLayer->addChild(m_statusLabel);
 
-        auto createBtnSpr = ButtonSprite::create("Crear", "bigFont.fnt", "GJ_button_01.png", 0.8f);
+        auto createBtnSpr = ButtonSprite::create("Create", "bigFont.fnt", "GJ_button_01.png", 0.8f);
         createBtnSpr->setScale(0.85f);
         auto createBtn = CCMenuItemSpriteExtra::create(createBtnSpr, this, menu_selector(CommunityPopup::onCreateCommunity));
         createBtn->setPosition({ centerX, 25.0f });
@@ -293,7 +293,7 @@ protected:
     void onToggleVisibilityMark(CCObject* sender) {
         m_isPublic = !m_isPublic;
         if (m_visibilityStatusLabel) {
-            m_visibilityStatusLabel->setString(m_isPublic ? "Publico" : "Privado");
+            m_visibilityStatusLabel->setString(m_isPublic ? "Public" : "Private");
         }
     }
 
@@ -360,8 +360,8 @@ protected:
         parent->addChild(m_previewPlayer, z);
     }
 
-    void onInfo(CCObject* sender) { FLAlertLayer::create(nullptr, "Info", "<cg>Comunidad Publica</c>: Cualquiera puede unirse con el ID.\n<cr>Comunidad Privada</c>: Solo por invitacion.", "Okei", nullptr, 360)->show(); }
-    void onCreateCommunity(CCObject* sender) { std::string name = m_nameInput->getString(); if (name.empty()) { if (m_statusLabel) { m_statusLabel->setString("Escribe un nombre!"); m_statusLabel->setColor({ 255, 255, 100 }); } return; } if (m_statusLabel) { m_statusLabel->setString("Creando comunidad..."); m_statusLabel->setColor({ 255, 255, 255 }); } auto am = GJAccountManager::sharedState(); std::string ownerId = std::to_string(am->m_accountID); m_communityNet->crearComunidad(ownerId, name, m_descInput->getString(), m_selectedIcon, m_selectedCol1, m_selectedCol2, m_selectedGlow, m_isPublic); }
+    void onInfo(CCObject* sender) { FLAlertLayer::create(nullptr, "Info", "<cg>Public Community</c>: Anyone can join with the ID.\n<cr>Private Community</c>: By invitation only, or if the admin accepts you.", "Okei", nullptr, 360)->show(); }
+    void onCreateCommunity(CCObject* sender) { std::string name = m_nameInput->getString(); if (name.empty()) { if (m_statusLabel) { m_statusLabel->setString("Write a name!"); m_statusLabel->setColor({ 255, 255, 100 }); } return; } if (m_statusLabel) { m_statusLabel->setString("Creating community..."); m_statusLabel->setColor({ 255, 255, 255 }); } auto am = GJAccountManager::sharedState(); std::string ownerId = std::to_string(am->m_accountID); m_communityNet->crearComunidad(ownerId, name, m_descInput->getString(), m_selectedIcon, m_selectedCol1, m_selectedCol2, m_selectedGlow, m_isPublic); }
     void onClose(CCObject* sender) override { if (m_communityNet) { m_communityNet->setOnCommunityCreated(nullptr); m_communityNet->setOnError(nullptr); m_communityNet->setLogCallback(nullptr); m_communityNet->release(); m_communityNet = nullptr; } Popup::onClose(sender); }
 
 public:

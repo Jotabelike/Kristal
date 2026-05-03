@@ -13,11 +13,13 @@
 #include "CommunityAddMemberPopup.hpp"
 #include "CommunityMembersPopup.hpp"
 #include "CommunityEditPopup.hpp"
+#include "CommunityBrowserPopup.hpp"
+#include "CommunityJoinRequestsPopup.hpp"
+#include "CommunityInvitesPopup.hpp"
 #include <fstream>
 
-
-// pepe
 using namespace geode::prelude;
+
 class ChatPopup : public geode::Popup, public TextInputDelegate, public FLAlertLayerProtocol {
 protected:
     TextInput* m_input;
@@ -44,6 +46,8 @@ protected:
     CCMenuItemSpriteExtra* m_membersBtn = nullptr;
     CCMenuItemSpriteExtra* m_editCommunityBtn = nullptr;
     CCMenuItemSpriteExtra* m_deleteCommunityBtn = nullptr;
+    CCMenuItemSpriteExtra* m_joinRequestsBtn = nullptr;
+    CCMenuItemSpriteExtra* m_leaveCommunityBtn = nullptr;
     CommunityNetwork* m_communityNet = nullptr;
 
     std::string applySmartWrapping(const std::string& input, int maxCharsPerLine = 28) {
@@ -119,18 +123,18 @@ protected:
 #endif
 
     bool init(ContactInfo* preOpenContact) {
-        if (!Popup::init(420.f, 260.f, "GJ_square01.png")) {
+        if (!Popup::init(420.f, 260.f, "GJ_square02.png")) {
             return false;
         }
 
         auto am = GJAccountManager::sharedState();
         if (!am || am->m_accountID == 0) {
-            FLAlertLayer::create(nullptr, "Kristal", "Debes iniciar sesion en Geometry Dash para usar el chat.", "OK", nullptr, 300)->show();
+            FLAlertLayer::create(nullptr, "Kristal", "You must be logged into Geometry Dash to use the chat.", "OK", nullptr, 300)->show();
             return false;
         }
 
         cargarPrioridad();
-        std::string Channel = "Mundo";
+        std::string Channel = "World";
 
         if (preOpenContact) {
             Channel = preOpenContact->username;
@@ -191,7 +195,10 @@ protected:
             bool isSameSize = (mensajes.size() == m_lastMessageCount);
             bool isSameLastMsg = (currentLastText == m_lastMessageText);
 
-            if (isSameSize && isSameLastMsg) {
+            // Bug Fix: Only skip redrawing if the UI actually has children rendered.
+            bool uiIsEmpty = m_scrollLayer->m_contentLayer->getChildrenCount() == 0;
+
+            if (isSameSize && isSameLastMsg && !uiIsEmpty) {
                 return;
             }
 
@@ -252,6 +259,14 @@ protected:
         m_addMemberBtn->setZOrder(10);
         m_addMemberBtn->setVisible(false);
         fixedMenu->addChild(m_addMemberBtn);
+ 
+        auto leaveSpr = CCSprite::createWithSpriteFrameName("exit_group_btn.png"_spr);     
+        leaveSpr->setScale(0.52f);
+        m_leaveCommunityBtn = CCMenuItemSpriteExtra::create(leaveSpr, this, menu_selector(ChatPopup::onLeaveCommunity));
+        m_leaveCommunityBtn->setPosition({ bgSize.width - 45.0f, 15.0f });
+        m_leaveCommunityBtn->setZOrder(10);
+        m_leaveCommunityBtn->setVisible(false);
+        fixedMenu->addChild(m_leaveCommunityBtn);
 
         auto membersSpr = CCSprite::createWithSpriteFrameName("GJ_longBtn05_001.png");
         membersSpr->setScale(0.45f);
@@ -277,6 +292,14 @@ protected:
         m_deleteCommunityBtn->setVisible(false);
         fixedMenu->addChild(m_deleteCommunityBtn);
 
+        auto joinReqSpr = CCSprite::createWithSpriteFrameName("accountBtn_requests_001.png");
+        joinReqSpr->setScale(0.40f);
+        m_joinRequestsBtn = CCMenuItemSpriteExtra::create(joinReqSpr, this, menu_selector(ChatPopup::onShowJoinRequests));
+        m_joinRequestsBtn->setPosition({ bgSize.width - 165.0f, 15.0f });
+        m_joinRequestsBtn->setZOrder(10);
+        m_joinRequestsBtn->setVisible(false);
+        fixedMenu->addChild(m_joinRequestsBtn);
+
         auto sideMenu = CCMenu::create();
         sideMenu->setPosition({ bgSize.width + 25.0f, bgSize.height / 2 + 10.0f });
         m_mainLayer->addChild(sideMenu, 2);
@@ -291,12 +314,23 @@ protected:
         auto addContactBtn = CCMenuItemSpriteExtra::create(addContactSprite, this, menu_selector(ChatPopup::onOpenAddContact));
         sideMenu->addChild(addContactBtn);
 
-        auto communitySprite = CCSprite::createWithSpriteFrameName("GJ_chatBtn_001.png");
-        communitySprite->setScale(0.45f);
+        auto communitySprite = CCSprite::createWithSpriteFrameName("new_group_btn.png"_spr);
+        communitySprite->setScale(0.6f);
         auto communityBtn = CCMenuItemSpriteExtra::create(communitySprite, this, menu_selector(ChatPopup::onOpenCommunity));
         sideMenu->addChild(communityBtn);
 
-        sideMenu->alignItemsVerticallyWithPadding(15.0f);
+        auto browseSprite = CCSprite::createWithSpriteFrameName("search_group_btn.png"_spr);
+        browseSprite->setScale(0.6f);
+        auto browseBtn = CCMenuItemSpriteExtra::create(browseSprite, this, menu_selector(ChatPopup::onBrowseCommunities));
+        sideMenu->addChild(browseBtn);
+
+        // INVITATIONS INBOX BUTTON
+        auto invitesSprite = CCSprite::createWithSpriteFrameName("accountBtn_messages_001.png");
+        invitesSprite->setScale(0.6f);
+        auto invitesBtn = CCMenuItemSpriteExtra::create(invitesSprite, this, menu_selector(ChatPopup::onOpenInvites));
+        sideMenu->addChild(invitesBtn);
+
+        sideMenu->alignItemsVerticallyWithPadding(12.0f);
 
         float contactsScrollH = m_chatHeight - 20.0f;
         m_contactsScroll = ScrollLayer::create({ contactsWidth, contactsScrollH });
@@ -340,7 +374,7 @@ protected:
         m_mainLayer->addChild(inputBg);
 
         float anchoInput = m_chatWidth - 120.0f;
-        m_input = TextInput::create(anchoInput, "Escribe un mensaje...", "chatFont.fnt");
+        m_input = TextInput::create(anchoInput, "Write a message...", "chatFont.fnt");
         m_input->setPosition({ chatBG->getPositionX() - (m_chatWidth / 2) + 110.0f, chatBG->getPositionY() - m_chatHeight / 2 + 22.0f });
         m_input->getBGSprite()->setVisible(false);
         m_input->setTextAlign(geode::TextInputAlign::Left);
@@ -381,8 +415,8 @@ protected:
     }
 
     void onInfo(CCObject* sender) {
-        std::string Info = "<cr>(1) No ser toxico</c>: No decir groserias o andar insultando a la gente\n<co>Cero Spam</c>: Nada de decir promos o invitaciones a otros servers etc...\n<cg>Hacer uso del sentido comun</c>: Hay muchas reglas que todos ya deben conocer, si aqui no puse alguna tu debes tener sentido comun y decir esto no estaria permitido";
-        FLAlertLayer::create(nullptr, "Reglas", Info.c_str(), "Okei", nullptr, 360)->show();
+        std::string Info = "<cr>(1) Not be toxic</c>: Don't swear or insult people\n<co>No Spam</c>: No mentioning promos or invitations to other servers, etc....\n<cg>Use common sense</c>: There are many rules that everyone should already know; if I haven't listed one here, you should use common sense and say, This wouldn't be allowed.";
+        FLAlertLayer::create(nullptr, "Rules", Info.c_str(), "Okay", nullptr, 360)->show();
     }
 
     void onAddCommunityMember(CCObject* sender) {
@@ -424,39 +458,93 @@ protected:
     }
 
     void onDeleteCommunity(CCObject* sender) {
-        auto confirm = FLAlertLayer::create(this, "Eliminar Comunidad",
-            "<cr>Estas seguro?</c>\nSe eliminara la comunidad para todos los miembros.\nEsta accion no se puede deshacer.",
-            "Cancelar", "Eliminar", 320);
+        auto confirm = FLAlertLayer::create(this, "Delete Community",
+            "<cr>Are you sure?</c>\nThe community will be deleted for all members.\nThis action cannot be undone.",
+            "Cancel", "Delete", 320);
         confirm->setTag(999);
         confirm->show();
     }
 
+    void onLeaveCommunity(CCObject* sender) {
+        auto confirm = FLAlertLayer::create(this, "Leave Community",
+            "Are you sure you want to <cr>leave</c> this community?",
+            "Cancel", "Leave", 320);
+        confirm->setTag(998);
+        confirm->show();
+    }
+
     void FLAlert_Clicked(FLAlertLayer* alert, bool btn2) override {
-        if (!btn2 || alert->getTag() != 999) return;
+        if (!btn2) return;
+
         auto am = GJAccountManager::sharedState();
         std::string myId = std::to_string(am->m_accountID);
 
-        if (!m_communityNet) {
-            m_communityNet = CommunityNetwork::create();
-            m_communityNet->retain();
+        if (alert->getTag() == 999) {
+            if (!m_communityNet) {
+                m_communityNet = CommunityNetwork::create();
+                m_communityNet->retain();
+            }
+            m_communityNet->setOnCommunityDeleted([this]() {
+                FLAlertLayer::create(nullptr, "Success", "Community deleted!", "OK", nullptr, 300)->show();
+                this->resetChatView();
+                });
+            m_communityNet->setOnError([](const std::string& err) {
+                FLAlertLayer::create(nullptr, "Error", err.c_str(), "OK", nullptr, 300)->show();
+                });
+            m_communityNet->eliminarComunidad(myId, m_activeChatId);
         }
-        m_communityNet->setOnCommunityDeleted([this]() {
-            FLAlertLayer::create(nullptr, "Exito", "Comunidad eliminada!", "OK", nullptr, 300)->show();
-            m_activeChatId = "";
-            m_activeChatName = "";
-            limpiarChat(true);
-            if (m_chatSubtitle) m_chatSubtitle->setString("Chat: Mundo");
-            m_addMemberBtn->setVisible(false);
-            m_membersBtn->setVisible(false);
-            m_editCommunityBtn->setVisible(false);
-            m_deleteCommunityBtn->setVisible(false);
-            if (m_contactIndicator) m_contactIndicator->setVisible(false);
+        else if (alert->getTag() == 998) {
+            if (!m_communityNet) {
+                m_communityNet = CommunityNetwork::create();
+                m_communityNet->retain();
+            }
+            m_communityNet->setOnLeftCommunity([this](const std::string& msg) {
+                FLAlertLayer::create(nullptr, "Success", msg.c_str(), "OK", nullptr, 300)->show();
+                this->resetChatView();
+                });
+            m_communityNet->setOnError([](const std::string& err) {
+                FLAlertLayer::create(nullptr, "Error", err.c_str(), "OK", nullptr, 300)->show();
+                });
+            m_communityNet->salirComunidad(myId, m_activeChatId);
+        }
+    }
+
+    void resetChatView() {
+        m_activeChatId = "";
+        m_activeChatName = "";
+        limpiarChat(true);
+        if (m_chatSubtitle) m_chatSubtitle->setString("Chat: World");
+        if (m_addMemberBtn) m_addMemberBtn->setVisible(false);
+        if (m_membersBtn) m_membersBtn->setVisible(false);
+        if (m_editCommunityBtn) m_editCommunityBtn->setVisible(false);
+        if (m_deleteCommunityBtn) m_deleteCommunityBtn->setVisible(false);
+        if (m_joinRequestsBtn) m_joinRequestsBtn->setVisible(false);
+        if (m_leaveCommunityBtn) m_leaveCommunityBtn->setVisible(false);
+        if (m_contactIndicator) m_contactIndicator->setVisible(false);
+        if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
+    }
+
+    void onBrowseCommunities(CCObject* sender) {
+        auto popup = CommunityBrowserPopup::create([this]() {
             if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
             });
-        m_communityNet->setOnError([](const std::string& err) {
-            FLAlertLayer::create(nullptr, "Error", err.c_str(), "OK", nullptr, 300)->show();
+        if (popup) popup->show();
+    }
+
+    void onOpenInvites(CCObject* sender) {
+        auto popup = CommunityInvitesPopup::create([this]() {
+            if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
             });
-        m_communityNet->eliminarComunidad(myId, m_activeChatId);
+        if (popup) popup->show();
+    }
+
+    void onShowJoinRequests(CCObject* sender) {
+        auto am = GJAccountManager::sharedState();
+        std::string myId = std::to_string(am->m_accountID);
+        auto popup = CommunityJoinRequestsPopup::create(m_activeChatId, myId, [this]() {
+            if (m_contactsNetwork) m_contactsNetwork->cargarContactos();
+            });
+        if (popup) popup->show();
     }
 
     void onAddSticker(CCObject* sender) {
@@ -507,6 +595,7 @@ protected:
 
         m_contactsScroll->m_contentLayer->setContentSize({ contactsWidth, totalHeight });
         auto menu = CCMenu::create();
+        menu->setContentSize({ contactsWidth, totalHeight }); 
         menu->setPosition({ 0, 0 });
         m_contactsScroll->m_contentLayer->addChild(menu);
 
@@ -528,7 +617,7 @@ protected:
             contactBtn->setTag(99);
             menu->addChild(contactBtn);
 
-            auto nameLabel = CCLabelBMFont::create("Anunci...", "chatFont.fnt");
+            auto nameLabel = CCLabelBMFont::create("Announc...", "chatFont.fnt");
             nameLabel->setScale(0.23f);
             nameLabel->setPosition({ contactsWidth / 2, currentY + spacing / 2 - 16.0f });
             nameLabel->setColor({ 255, 215, 0 });
@@ -665,7 +754,23 @@ protected:
 
         auto am = GJAccountManager::sharedState();
         if (am && am->m_accountID != 0) {
-            m_network->cargarMensajes(std::to_string(am->m_accountID), m_activeChatId);
+            std::string myId = std::to_string(am->m_accountID);
+            m_network->cargarMensajes(myId, m_activeChatId);
+
+            if (m_addMemberBtn) {
+                bool isOwner = (m_activeContact.isCommunity && m_activeContact.ownerId == myId);
+                bool isMemberOnly = (m_activeContact.isCommunity && m_activeContact.ownerId != myId);
+
+                m_addMemberBtn->setVisible(isOwner);
+                m_membersBtn->setVisible(isOwner);
+                m_editCommunityBtn->setVisible(isOwner);
+                m_deleteCommunityBtn->setVisible(isOwner);
+
+                bool isPrivateOwner = (isOwner && m_activeContact.isCommunity);
+                m_joinRequestsBtn->setVisible(isPrivateOwner);
+
+                m_leaveCommunityBtn->setVisible(isMemberOnly);
+            }
         }
 
         if (m_contactsNetwork) {
@@ -674,15 +779,6 @@ protected:
 
         if (m_chatSubtitle) {
             m_chatSubtitle->setString(("Chat: " + m_activeChatName).c_str());
-        }
-        if (m_addMemberBtn) {
-            auto am2 = GJAccountManager::sharedState();
-            std::string myId = std::to_string(am2->m_accountID);
-            bool isOwner = (m_activeContact.isCommunity && m_activeContact.ownerId == myId);
-            m_addMemberBtn->setVisible(isOwner);
-            m_membersBtn->setVisible(isOwner);
-            m_editCommunityBtn->setVisible(isOwner);
-            m_deleteCommunityBtn->setVisible(isOwner);
         }
     }
 

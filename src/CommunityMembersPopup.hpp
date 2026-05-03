@@ -21,7 +21,7 @@ protected:
         m_ownerId = ownerId;
         m_onChanged = onChanged;
 
-        this->setTitle("Miembros", "bigFont.fnt", 0.6f);
+        this->setTitle("Members", "bigFont.fnt", 0.6f);
 
         auto bgSize = m_mainLayer->getContentSize();
 
@@ -47,7 +47,7 @@ protected:
             this->buildList();
             });
         m_net->setOnMemberRemoved([this](const std::string& msg) {
-            FLAlertLayer::create(nullptr, "Exito", msg.c_str(), "OK", nullptr, 300)->show();
+            FLAlertLayer::create(nullptr, "Success", msg.c_str(), "OK", nullptr, 300)->show();
             if (m_onChanged) m_onChanged();
             m_net->listarMiembros(m_communityId);
             });
@@ -135,9 +135,9 @@ protected:
         if (idx < 0 || idx >= static_cast<int>(m_members.size())) return;
 
         const auto& member = m_members[idx];
-        std::string msg = "Expulsar a <cr>" + member.username + "</c> de la comunidad?";
+        std::string msg = "Expel to <cr>" + member.username + "</c> of the community?";
 
-        auto confirm = FLAlertLayer::create(this, "Confirmar", msg.c_str(), "Cancelar", "Expulsar", 300);
+        auto confirm = FLAlertLayer::create(this, "Confirm", msg.c_str(), "Cancel", "Expel", 300);
         confirm->setTag(idx);
         confirm->show();
     }

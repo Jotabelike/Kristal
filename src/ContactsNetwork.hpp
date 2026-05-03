@@ -86,7 +86,6 @@ protected:
             std::string glowStr = extractJsonValue(obj, "glow");
             if (!glowStr.empty()) info.glow = std::stoi(glowStr);
 
-
             std::string unreadStr = extractJsonValue(obj, "unreadCount");
             if (!unreadStr.empty()) info.unreadCount = std::stoi(unreadStr);
 
@@ -114,13 +113,12 @@ public:
     void setOnRequestAccepted(std::function<void()> cb) { m_onRequestAccepted = cb; }
     void setOnSolicitudSent(std::function<void(bool, const std::string&)> cb) { m_onSolicitudSent = cb; }
 
-
     void enviarSolicitud(const std::string& toAccountId) {
         auto am = GJAccountManager::sharedState();
         int myId = am->m_accountID;
         std::string myUsername = am->m_username;
         if (myId == 0) return;
-        if (myUsername.empty()) myUsername = "Desconocido";
+        if (myUsername.empty()) myUsername = "unknown";
 
         std::string postData = "fromId=" + std::to_string(myId) + "&fromUsername=" + urlEncode(myUsername) + "&toId=" + urlEncode(toAccountId);
         auto request = new CCHttpRequest();
@@ -137,10 +135,10 @@ public:
     }
 
     void onEnviarSolicitudResponse(CCHttpClient* sender, CCHttpResponse* response) {
-        if (!response) { if (m_onSolicitudSent) m_onSolicitudSent(false, "Sin respuesta."); return; }
+        if (!response) { if (m_onSolicitudSent) m_onSolicitudSent(false, "No response."); return; }
         gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
-        if (response->isSucceed()) { if (m_onSolicitudSent) m_onSolicitudSent(true, "Solicitud enviada!"); }
+        if (response->isSucceed()) { if (m_onSolicitudSent) m_onSolicitudSent(true, "Request sent!"); }
         else { std::string errorMsg = extractJsonValue(body, "error"); if (errorMsg.empty()) errorMsg = body; if (m_onSolicitudSent) m_onSolicitudSent(false, errorMsg); }
     }
 
@@ -170,7 +168,7 @@ public:
 
     void aceptarSolicitud(const std::string& fromId) {
         auto am = GJAccountManager::sharedState();
-        std::string myUsername = am->m_username.empty() ? "Desconocido" : am->m_username;
+        std::string myUsername = am->m_username.empty() ? "Unknown" : am->m_username;
         std::string postData = "fromId=" + urlEncode(fromId) + "&toId=" + std::to_string(am->m_accountID) + "&toUsername=" + urlEncode(myUsername);
         auto request = new CCHttpRequest();
         request->setUrl((m_baseUrl + "/solicitud/aceptar").c_str());
@@ -219,7 +217,6 @@ public:
         if (!response || !response->isSucceed()) { if (m_onContactsLoaded) m_onContactsLoaded({}); return; }
         gd::vector<char>* data = response->getResponseData();
         std::string body(data->begin(), data->end());
-
 
         if (body == m_lastContactsJson) {
             return;
